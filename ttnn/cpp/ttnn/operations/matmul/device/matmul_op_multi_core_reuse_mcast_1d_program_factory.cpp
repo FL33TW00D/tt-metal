@@ -1731,6 +1731,11 @@ operation::ProgramWithCallbacks create_program_gather_in0(
 
     uint32_t in0_num_subblocks = (per_core_M / out_subblock_h);
     uint32_t in0_block_num_tiles = out_subblock_h * in0_block_w * in0_num_subblocks;
+    uint32_t in0_subblock_num_tiles = out_subblock_h * in0_block_w;
+    uint32_t in1_num_subblocks = per_core_N / out_subblock_w;
+    uint32_t in1_block_num_tiles = out_subblock_w * in0_block_w * in1_num_subblocks;
+    uint32_t in1_per_core_w = out_subblock_w * in1_num_subblocks;
+    uint32_t out_subblock_num_tiles = out_subblock_h * out_subblock_w;
 
     /* Compile time args */
     std::vector<uint32_t> in0_sender_compile_time_args = {
@@ -1744,14 +1749,10 @@ operation::ProgramWithCallbacks create_program_gather_in0(
     std::vector<uint32_t> in1_sender_writer_compile_time_args = {
         (std::uint32_t)in1_shard_width_in_tiles,  // in1_shard_width_in_tiles
         (std::uint32_t)in1_shard_height_in_tiles,
-        (std::uint32_t)B,  // batch
+        (std::uint32_t)num_blocks,           // num_blocks
+        (std::uint32_t)in1_block_num_tiles,  // in1_block_num_tiles
+        (std::uint32_t)B,                    // batch
     };
-
-    uint32_t in0_subblock_num_tiles = out_subblock_h * in0_block_w;
-    uint32_t in1_num_subblocks = per_core_N / out_subblock_w;
-    uint32_t in1_block_num_tiles = out_subblock_w * in0_block_w * in1_num_subblocks;
-    uint32_t in1_per_core_w = out_subblock_w * in1_num_subblocks;
-    uint32_t out_subblock_num_tiles = out_subblock_h * out_subblock_w;
 
     std::vector<uint32_t> compute_kernel_args = {
         in0_block_w,             // in0_block_w
@@ -1911,6 +1912,13 @@ operation::ProgramWithCallbacks create_program_gather_in0(
             noc,
         };
         tt_metal::SetRuntimeArgs(program, mm_kernel_in0_id, core, mm_in0_args);
+
+        /* in1 */
+        std::vector<uint32_t> mm_in1_args = {
+            i,  // ring_idx
+        };
+
+        tt_metal::SetRuntimeArgs(program, mm_kernel_in1_sender_writer_id, core, mm_in1_args);
 
         /* compute */
         std::vector<uint32_t> mm_kernel_compute_args = {
