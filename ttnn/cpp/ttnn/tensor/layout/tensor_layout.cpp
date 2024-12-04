@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tensor_layout.hpp"
+#include "common/math.hpp"
 
 namespace tt::tt_metal {
 
@@ -177,6 +178,7 @@ size_t TensorLayout::compute_packed_buffer_size_bytes(const ttnn::SimpleShape& s
     const size_t page_count = physical_area / page_area;
     const size_t page_size_bytes = compute_page_size_bytes(page_shape);
 
+    log_info(LogOp, "packed buffer size {}", page_count * page_size_bytes);
     return page_count * page_size_bytes;
 }
 
@@ -260,6 +262,32 @@ Size TensorLayout::compute_physical_shape(const ttnn::SimpleShape& shape) const 
         return size;
     }
 
+    // if (memory_config_.shard_spec.has_value() and memory_config_.shard_spec.value().mode == ShardMode::PHYSICAL) {
+    //     // Iterate dims in reverse order
+    //     for (int i = -1; i >= -rank; --i) {
+    //         auto& dim = i == -1 ? width : height;
+    //         dim *= shape[i];
+    //     }
+
+    //     const auto physical_shard_shape = Size(memory_config_.shard_spec.value().shape);
+
+    //     auto get_physical_size =
+    //         [](auto original_size, auto physical_shard_size, auto alignment) -> uint32_t {
+    //         uint32_t num_cores = tt::div_up(original_size, physical_shard_size);
+    //         return (num_cores * physical_shard_size);
+    //     };
+
+    //     auto physical_height =
+    //         get_physical_size(height, physical_shard_shape.height(), alignment_[-2]);
+    //     auto physical_width =
+    //         get_physical_size(width, physical_shard_shape.width(), alignment_[-1]);
+
+    //     log_info(LogOp, "Physical height: {}, width: {}", physical_height, physical_width);
+    //     log_info(LogOp, "height: {}, width: {}", height, width);
+    //     Size size{physical_height, physical_width};
+    //     return size;
+    // }
+
     // INTERLEAVED or deprecated PHYSICAL SHARDING
     const int max_rank = std::max(rank, alignment_rank);
 
@@ -278,6 +306,7 @@ Size TensorLayout::compute_physical_shape(const ttnn::SimpleShape& shape) const 
     }
 
     Size size{height, width};
+    log_info(LogOp, "height: {}, width: {}", height, width);
     return size;
 }
 

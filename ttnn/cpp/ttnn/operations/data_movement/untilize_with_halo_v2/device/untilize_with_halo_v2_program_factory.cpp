@@ -97,11 +97,17 @@ operation::ProgramWithCallbacks untilize_with_halo_multi_core_v2(
     // output shard, after inserting halo and padding, goes into this CB as input to next op.
     uint32_t out_cb_pagesize = out_stick_nbytes;
     uint32_t out_cb_npages = max_out_nsticks_per_core;
+    log_info(
+        tt::LogOp,
+        "CB {} :: npages = {}, pagesize = {}, total_size = {}",
+        out_cb_id,
+        out_cb_npages,
+        out_cb_pagesize,
+        out_cb_npages * out_cb_pagesize);
     auto out_cb_config = CircularBufferConfig(out_cb_npages * out_cb_pagesize, {{out_cb_id, out_df}})
                              .set_page_size(out_cb_id, out_cb_pagesize)
                              .set_globally_allocated_address(*dst_buffer);
     auto out_cb = CreateCircularBuffer(program, all_cores, out_cb_config);
-    log_debug(tt::LogOp, "CB {} :: npages = {}, pagesize = {}", out_cb_id, out_cb_npages, out_cb_pagesize);
 
     // CB for pad val buffer (stick sized)
     uint32_t pad_cb_pagesize = out_stick_nbytes;
