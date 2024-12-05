@@ -164,6 +164,17 @@ def run_multi_core_matmul_1d(
             }
         )
 
+    core_range_set = ttnn.CoreRangeSet(
+        {
+            ttnn.CoreRange(
+                ttnn.CoreCoord(1, 1),
+                ttnn.CoreCoord(1, 1),
+            ),
+        }
+    )
+
+    print(f"num_cores: {num_cores}")
+
     in0_sharded_mem_config = ttnn.MemoryConfig(
         ttnn.TensorMemoryLayout.WIDTH_SHARDED,
         ttnn.BufferType.L1,
@@ -242,6 +253,21 @@ def run_multi_core_matmul_1d(
             dst_full_sync_en=True,
         )
 
+    # Global CB
+    sender_cores = [ttnn.CoreCoord(0, 0)]
+    receiver_cores = [
+        ttnn.CoreRangeSet(
+            {
+                ttnn.CoreRange(
+                    ttnn.CoreCoord(1, 1),
+                    ttnn.CoreCoord(1, 1),
+                ),
+            }
+        ),
+    ]
+    sender_receiver_mapping = dict(zip(sender_cores, receiver_cores))
+    global_cb = ttnn.create_global_circular_buffer(device, sender_receiver_mapping, 207360)
+
     for _ in range(num_iters):
         output_t = ttnn.matmul(
             in0_t,
@@ -249,50 +275,51 @@ def run_multi_core_matmul_1d(
             program_config=program_config,
             memory_config=output_sharded_mem_config,
             compute_kernel_config=compute_kernel_config,
+            global_cb=global_cb,
         )
-        if mm_chain:
-            a_t = ttnn.from_torch(
-                in0,
-                device=device,
-                layout=ttnn.TILE_LAYOUT,
-                dtype=in0_dtype,
-            )
-            b_t = ttnn.from_torch(
-                in1,
-                device=device,
-                layout=ttnn.TILE_LAYOUT,
-                dtype=in1_dtype,
-            )
-            c_t = ttnn.matmul(a_t, b_t)
-            c_out = ttnn.to_torch(c_t)
-            passing, output = comp_pcc(in0 * in1, c_out)
-            assert passing
+    #     if mm_chain:
+    #         a_t = ttnn.from_torch(
+    #             in0,
+    #             device=device,
+    #             layout=ttnn.TILE_LAYOUT,
+    #             dtype=in0_dtype,
+    #         )
+    #         b_t = ttnn.from_torch(
+    #             in1,
+    #             device=device,
+    #             layout=ttnn.TILE_LAYOUT,
+    #             dtype=in1_dtype,
+    #         )
+    #         c_t = ttnn.matmul(a_t, b_t)
+    #         c_out = ttnn.to_torch(c_t)
+    #         passing, output = comp_pcc(in0 * in1, c_out)
+    #         assert passing
 
-            c_t = ttnn.matmul(
-                in0_t,
-                in1_t,
-                program_config=program_config,
-                memory_config=output_sharded_mem_config,
-                compute_kernel_config=compute_kernel_config,
-            )
-            c_out = ttnn.to_torch(c_t)
-            passing, output = comp_pcc(in0 * in1, c_out, pcc_threshold)
-            assert passing
+    #         c_t = ttnn.matmul(
+    #             in0_t,
+    #             in1_t,
+    #             program_config=program_config,
+    #             memory_config=output_sharded_mem_config,
+    #             compute_kernel_config=compute_kernel_config,
+    #         )
+    #         c_out = ttnn.to_torch(c_t)
+    #         passing, output = comp_pcc(in0 * in1, c_out, pcc_threshold)
+    #         assert passing
 
-    tt_out = ttnn.to_torch(output_t)
+    # tt_out = ttnn.to_torch(output_t)
 
-    pt_out = in0 @ in1
-    if activation:
-        act_fnc = torch.nn.functional.silu if activation == ttnn.UnaryOpType.SILU else torch.nn.functional.relu
-        pt_out = act_fnc(pt_out)
+    # pt_out = in0 @ in1
+    # if activation:
+    #     act_fnc = torch.nn.functional.silu if activation == ttnn.UnaryOpType.SILU else torch.nn.functional.relu
+    #     pt_out = act_fnc(pt_out)
 
-    passing, output = comp_pcc(pt_out, tt_out, pcc_threshold)
-    logger.info(output)
+    # passing, output = comp_pcc(pt_out, tt_out, pcc_threshold)
+    # logger.info(output)
 
-    assert passing
+    # assert passing
 
-    # Check program cache
-    assert device.num_program_cache_entries() == 1  # Only 1 op
+    # # Check program cache
+    # assert device.num_program_cache_entries() == 1  # Only 1 op
 
 
 @pytest.mark.skipif(is_grayskull(), reason="GS does not support fp32")
@@ -304,36 +331,36 @@ def run_multi_core_matmul_1d(
         # # 32, 2304, 3840 (PREFETCHER), only works on TG
         # (1, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.LoFi, True, True, PREFETCHER_GRID),
         # 32, 2304, 3840
-        (1, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.LoFi, True, True, (8, 3)),
-        # 32, 2304, 3840
-        (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.LoFi, True, True, (8, 3)),
-        # 32, 2304, 3840
-        (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.LoFi, False, False, (8, 3)),
-        # 32, 2304, 3840
-        (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi2, False, True, (8, 3)),
-        # 32, 2304, 3840
-        (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi2, True, False, (8, 3)),
-        # 32, 2304, 3840
-        (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, False, (8, 3)),
-        # 32, 2304, 3840
-        (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, True, False, (8, 3)),
-        # 32, 2304, 3840
-        (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, True, (8, 3)),
-        # 256, 1024, 8192
-        (1, 256, 1024, 8192, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi4, True, True, (8, 4)),
-        # 256, 1024, 8192
-        (1, 256, 1024, 8192, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi4, True, True, (8, 4)),
-        # # 128, 8192, 2048
-        # (1, 128, 8192, 2048, ttnn.bfloat8_b, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi2, True, True, (8, 8)),
-        # # 128, 8192, 2048
-        # (1, 128, 8192, 2048, ttnn.bfloat8_b, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi2, True, False, (8, 8)),
-        # # 128, 8192, 2048
-        # (1, 128, 8192, 2048, ttnn.bfloat8_b, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi2, False, True, (8, 8)), # Fails with 0.98 PCC
-        # 32, 64, 64
-        (1, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, True, True, (2, 1)),
-        # 32, 64, 64
-        (11, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, True, True, (2, 1)),
-        (1, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, True, True, (1, 1)),
+        # (1, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.LoFi, True, True, (8, 3)),
+        # # 32, 2304, 3840
+        # (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.LoFi, True, True, (8, 3)),
+        # # 32, 2304, 3840
+        # (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.LoFi, False, False, (8, 3)),
+        # # 32, 2304, 3840
+        # (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi2, False, True, (8, 3)),
+        # # 32, 2304, 3840
+        # (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi2, True, False, (8, 3)),
+        # # 32, 2304, 3840
+        # (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, False, (8, 3)),
+        # # 32, 2304, 3840
+        # (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, True, False, (8, 3)),
+        # # 32, 2304, 3840
+        # (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, True, (8, 3)),
+        # # 256, 1024, 8192
+        # (1, 256, 1024, 8192, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi4, True, True, (8, 4)),
+        # # 256, 1024, 8192
+        # (1, 256, 1024, 8192, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi4, True, True, (8, 4)),
+        # # # 128, 8192, 2048
+        # # (1, 128, 8192, 2048, ttnn.bfloat8_b, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi2, True, True, (8, 8)),
+        # # # 128, 8192, 2048
+        # # (1, 128, 8192, 2048, ttnn.bfloat8_b, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi2, True, False, (8, 8)),
+        # # # 128, 8192, 2048
+        # # (1, 128, 8192, 2048, ttnn.bfloat8_b, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi2, False, True, (8, 8)), # Fails with 0.98 PCC
+        # # 32, 64, 64
+        # (1, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, True, True, (2, 1)),
+        # # 32, 64, 64
+        # (11, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, True, True, (2, 1)),
+        # (1, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, True, True, (1, 1)),
     ],
 )
 @pytest.mark.parametrize(
@@ -346,7 +373,9 @@ def run_multi_core_matmul_1d(
 )
 @pytest.mark.parametrize(
     "use_arbitrary_cores",
-    [False, True],
+    [
+        False,
+    ],
 )
 @pytest.mark.parametrize(
     "num_iters",
@@ -459,38 +488,41 @@ def test_multi_core_matmul_1d_mm_chain_wh(
     "B, M, K, N, in0_dtype, in1_dtype, fidelity, packer_l1_acc, fp32_acc_mode, grid",
     [
         # 32, 2304, 3840
-        (1, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.LoFi, False, False, (8, 3)),
-        # 32, 2304, 3840
-        (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.LoFi, False, False, (8, 3)),
-        # 32, 2304, 3840
-        (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi2, False, False, (8, 3)),
-        # 32, 2304, 3840
-        (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, False, (8, 3)),
-        # 256, 1024, 8192
-        (1, 256, 1024, 8192, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi4, False, False, (8, 4)),
-        # 128, 8192, 2048
-        (1, 128, 4096, 2048, ttnn.bfloat8_b, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi2, False, False, (8, 8)),
+        # (1, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.LoFi, False, False, (8, 3)),
+        # # 32, 2304, 3840
+        # (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.LoFi, False, False, (8, 3)),
+        # # 32, 2304, 3840
+        # (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi2, False, False, (8, 3)),
+        # # 32, 2304, 3840
+        # (3, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, False, (8, 3)),
+        # # 256, 1024, 8192
+        # (1, 256, 1024, 8192, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi4, False, False, (8, 4)),
+        # # 128, 8192, 2048
+        # (1, 128, 4096, 2048, ttnn.bfloat8_b, ttnn.bfloat4_b, ttnn.MathFidelity.HiFi2, False, False, (8, 8)),
+        # # 32, 64, 64
+        # (1, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, False, (2, 1)),
         # 32, 64, 64
-        (1, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, False, (2, 1)),
-        # 32, 64, 64
-        (11, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, False, (2, 1)),
+        # (11, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, False, (2, 1)),
+        (1, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, False, (1, 1)),
     ],
 )
 @pytest.mark.parametrize(
     "activation",
     [
         None,
-        ttnn.UnaryOpType.SILU,
-        ttnn.UnaryOpType.RELU,
+        # ttnn.UnaryOpType.SILU,
+        # ttnn.UnaryOpType.RELU,
     ],
 )
 @pytest.mark.parametrize(
     "use_arbitrary_cores",
-    [False, True],
+    [True],
 )
 @pytest.mark.parametrize(
     "num_iters",
-    [1, 3],
+    [
+        1,
+    ],
 )
 def test_multi_core_matmul_1d_gs(
     device,

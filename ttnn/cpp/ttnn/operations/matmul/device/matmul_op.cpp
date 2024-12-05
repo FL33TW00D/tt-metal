@@ -1021,6 +1021,8 @@ Matmul create_matmul_struct(
     tt::tt_metal::Tile output_tile =
         get_output_tile(parameters.output_mem_config, in0_tile, in1_tile, parameters.output_tile);
 
+    std::cout << "create_matmul_struct" << std::endl;
+
     return Matmul{
         parameters.program_config,
         broadcast_batch,
@@ -1033,7 +1035,8 @@ Matmul create_matmul_struct(
         parameters.user_run_batched,
         parameters.transpose_a,
         parameters.transpose_b,
-        output_tile};
+        output_tile,
+        parameters.global_cb};
 }
 
 Tensor matmul(
@@ -1044,6 +1047,8 @@ Tensor matmul(
     const uint8_t queue_id) {
     std::vector<std::optional<const Tensor>> optional_input_tensors = {};
     std::vector<Tensor> output_tensors;
+
+    std::cout << "matmul" << std::endl;
     if (bias.has_value()) {
         optional_input_tensors.push_back(bias.value());
         output_tensors = {
@@ -1072,6 +1077,8 @@ Tensor matmul(
         output_tensors,
         optional_input_tensors);
     return output_tensors.at(0);
+
+    std::cout << "matmul done" << std::endl;
 }
 
 void Matmul::validate(
@@ -1812,8 +1819,9 @@ operation::ProgramWithCallbacks Matmul::create_program(
                     program_config.fused_activation,
                     program_config.mcast_in0,
                     program_config.gather_in0,
-                    this->untilize_out,
-                    this->global_cb);
+                    this->untilize_out
+                    // this->global_cb
+                );
             } else if constexpr (std::is_same_v<
                                      ProgramConfigType,
                                      MatmulMultiCoreReuseMultiCastDRAMShardedProgramConfig>) {
