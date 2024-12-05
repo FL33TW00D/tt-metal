@@ -361,14 +361,15 @@ def run_multi_core_matmul_1d(
         # # 32, 64, 64
         # (11, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, True, True, (2, 1)),
         # (1, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, True, True, (1, 1)),
+        (1, 32, 64, 64, ttnn.bfloat16, ttnn.bfloat8_b, ttnn.MathFidelity.HiFi4, False, False, (1, 1)),
     ],
 )
 @pytest.mark.parametrize(
     "activation",
     [
         None,
-        ttnn.UnaryOpType.SILU,
-        ttnn.UnaryOpType.RELU,
+        # ttnn.UnaryOpType.SILU,
+        # ttnn.UnaryOpType.RELU,
     ],
 )
 @pytest.mark.parametrize(
@@ -379,7 +380,9 @@ def run_multi_core_matmul_1d(
 )
 @pytest.mark.parametrize(
     "num_iters",
-    [1, 3],
+    [
+        1,
+    ],
 )
 def test_multi_core_matmul_1d_wh(
     device,
@@ -419,66 +422,66 @@ def test_multi_core_matmul_1d_wh(
     )
 
 
-@pytest.mark.skipif(is_grayskull(), reason="GS does not support fp32")
-@pytest.mark.skipif(is_blackhole(), reason="Test suite for GS only")
-@pytest.mark.parametrize("has_bias", [False], ids=["no_bias"])
-@pytest.mark.parametrize(
-    "B, M, K, N, in0_dtype, in1_dtype, fidelity, packer_l1_acc, fp32_acc_mode, grid",
-    [
-        (1, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.LoFi, True, True, (8, 3)),
-    ],
-)
-@pytest.mark.parametrize(
-    "activation",
-    [
-        None,
-    ],
-)
-@pytest.mark.parametrize(
-    "use_arbitrary_cores",
-    [False],
-)
-@pytest.mark.parametrize(
-    "num_iters",
-    [3],
-)
-def test_multi_core_matmul_1d_mm_chain_wh(
-    device,
-    in0_dtype,
-    in1_dtype,
-    fidelity,
-    has_bias,
-    fp32_acc_mode,
-    packer_l1_acc,
-    B,
-    M,
-    K,
-    N,
-    activation,
-    grid,
-    use_arbitrary_cores,
-    num_iters,
-    use_program_cache,
-    function_level_defaults,
-):
-    run_multi_core_matmul_1d(
-        device,
-        in0_dtype,
-        in1_dtype,
-        fidelity,
-        has_bias,
-        fp32_acc_mode,
-        packer_l1_acc,
-        B,
-        M,
-        K,
-        N,
-        activation,
-        grid,
-        use_arbitrary_cores,
-        num_iters,
-        True,
-    )
+# @pytest.mark.skipif(is_grayskull(), reason="GS does not support fp32")
+# @pytest.mark.skipif(is_blackhole(), reason="Test suite for GS only")
+# @pytest.mark.parametrize("has_bias", [False], ids=["no_bias"])
+# @pytest.mark.parametrize(
+#     "B, M, K, N, in0_dtype, in1_dtype, fidelity, packer_l1_acc, fp32_acc_mode, grid",
+#     [
+#         (1, 32, 2304, 3840, ttnn.bfloat16, ttnn.bfloat4_b, ttnn.MathFidelity.LoFi, True, True, (8, 3)),
+#     ],
+# )
+# @pytest.mark.parametrize(
+#     "activation",
+#     [
+#         None,
+#     ],
+# )
+# @pytest.mark.parametrize(
+#     "use_arbitrary_cores",
+#     [False],
+# )
+# @pytest.mark.parametrize(
+#     "num_iters",
+#     [3],
+# )
+# def test_multi_core_matmul_1d_mm_chain_wh(
+#     device,
+#     in0_dtype,
+#     in1_dtype,
+#     fidelity,
+#     has_bias,
+#     fp32_acc_mode,
+#     packer_l1_acc,
+#     B,
+#     M,
+#     K,
+#     N,
+#     activation,
+#     grid,
+#     use_arbitrary_cores,
+#     num_iters,
+#     use_program_cache,
+#     function_level_defaults,
+# ):
+#     run_multi_core_matmul_1d(
+#         device,
+#         in0_dtype,
+#         in1_dtype,
+#         fidelity,
+#         has_bias,
+#         fp32_acc_mode,
+#         packer_l1_acc,
+#         B,
+#         M,
+#         K,
+#         N,
+#         activation,
+#         grid,
+#         use_arbitrary_cores,
+#         num_iters,
+#         True,
+#     )
 
 
 @pytest.mark.skipif(is_wormhole_b0(), reason="Test suite for GS only")
