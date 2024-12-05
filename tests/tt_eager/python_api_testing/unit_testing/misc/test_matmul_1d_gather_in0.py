@@ -277,49 +277,49 @@ def run_multi_core_matmul_1d(
             compute_kernel_config=compute_kernel_config,
             global_cb=global_cb,
         )
-    #     if mm_chain:
-    #         a_t = ttnn.from_torch(
-    #             in0,
-    #             device=device,
-    #             layout=ttnn.TILE_LAYOUT,
-    #             dtype=in0_dtype,
-    #         )
-    #         b_t = ttnn.from_torch(
-    #             in1,
-    #             device=device,
-    #             layout=ttnn.TILE_LAYOUT,
-    #             dtype=in1_dtype,
-    #         )
-    #         c_t = ttnn.matmul(a_t, b_t)
-    #         c_out = ttnn.to_torch(c_t)
-    #         passing, output = comp_pcc(in0 * in1, c_out)
-    #         assert passing
+        if mm_chain:
+            a_t = ttnn.from_torch(
+                in0,
+                device=device,
+                layout=ttnn.TILE_LAYOUT,
+                dtype=in0_dtype,
+            )
+            b_t = ttnn.from_torch(
+                in1,
+                device=device,
+                layout=ttnn.TILE_LAYOUT,
+                dtype=in1_dtype,
+            )
+            c_t = ttnn.matmul(a_t, b_t)
+            c_out = ttnn.to_torch(c_t)
+            passing, output = comp_pcc(in0 * in1, c_out)
+            assert passing
 
-    #         c_t = ttnn.matmul(
-    #             in0_t,
-    #             in1_t,
-    #             program_config=program_config,
-    #             memory_config=output_sharded_mem_config,
-    #             compute_kernel_config=compute_kernel_config,
-    #         )
-    #         c_out = ttnn.to_torch(c_t)
-    #         passing, output = comp_pcc(in0 * in1, c_out, pcc_threshold)
-    #         assert passing
+            c_t = ttnn.matmul(
+                in0_t,
+                in1_t,
+                program_config=program_config,
+                memory_config=output_sharded_mem_config,
+                compute_kernel_config=compute_kernel_config,
+            )
+            c_out = ttnn.to_torch(c_t)
+            passing, output = comp_pcc(in0 * in1, c_out, pcc_threshold)
+            assert passing
 
-    # tt_out = ttnn.to_torch(output_t)
+    tt_out = ttnn.to_torch(output_t)
 
-    # pt_out = in0 @ in1
-    # if activation:
-    #     act_fnc = torch.nn.functional.silu if activation == ttnn.UnaryOpType.SILU else torch.nn.functional.relu
-    #     pt_out = act_fnc(pt_out)
+    pt_out = in0 @ in1
+    if activation:
+        act_fnc = torch.nn.functional.silu if activation == ttnn.UnaryOpType.SILU else torch.nn.functional.relu
+        pt_out = act_fnc(pt_out)
 
-    # passing, output = comp_pcc(pt_out, tt_out, pcc_threshold)
-    # logger.info(output)
+    passing, output = comp_pcc(pt_out, tt_out, pcc_threshold)
+    logger.info(output)
 
-    # assert passing
+    assert passing
 
-    # # Check program cache
-    # assert device.num_program_cache_entries() == 1  # Only 1 op
+    # Check program cache
+    assert device.num_program_cache_entries() == 1  # Only 1 op
 
 
 @pytest.mark.skipif(is_grayskull(), reason="GS does not support fp32")

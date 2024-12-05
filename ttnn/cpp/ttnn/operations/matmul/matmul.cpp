@@ -57,8 +57,6 @@ ttnn::Tensor bound_matmul(
     const auto width_a = input_tensor_a_shape[-1];
     const auto height_b = input_tensor_b_shape[-2];
 
-    std::cout << "bound_matmul" << std::endl;
-
     if (width_a != height_b) {
         TT_THROW(
             "ttnn.matmul: The width of the first tensor must be equal to the height of the second tensor ({} != {}). "
@@ -118,7 +116,6 @@ Tensor MatmulOperation::invoke(
     if (core_grid.has_value()) {
         user_core_coord = CoreCoord(core_grid->x, core_grid->y);
     }
-    std::cout << "invoke" << std::endl;
     bool user_run_batched = detail::is_input_batched(input_tensor_b.get_logical_shape());
     return bound_matmul(
         input_tensor_a,
