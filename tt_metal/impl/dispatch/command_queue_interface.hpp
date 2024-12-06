@@ -12,6 +12,7 @@
 #include "tt_metal/impl/dispatch/cq_commands.hpp"
 #include "tt_metal/impl/dispatch/dispatch_core_manager.hpp"
 #include "tt_metal/impl/dispatch/memcpy.hpp"
+#include "tt_metal/impl/dispatch/kernels/packet_queue_ctrl.hpp"
 #include "tt_metal/llrt/hal.hpp"
 #include "tt_metal/llrt/llrt.hpp"
 
@@ -37,7 +38,8 @@ enum class CommandQueueDeviceAddrType : uint8_t {
     COMPLETION_Q1_LAST_EVENT = 5,
     DISPATCH_S_SYNC_SEM = 6,
     DISPATCH_MESSAGE = 7,
-    UNRESERVED = 8
+    PACKET_QUEUE_PTRS = 8,
+    UNRESERVED = 9,
 };
 
 enum class CommandQueueHostAddrType : uint8_t {
@@ -152,6 +154,8 @@ public:
         return offset;
     }
 
+    uint32_t packet_queue_ptr_buffer_size() const { return packet_queue_ptr_buffer_size_; }
+
 private:
     dispatch_constants(const CoreType& core_type, const uint32_t num_hw_cqs) {
         TT_ASSERT(core_type == CoreType::WORKER or core_type == CoreType::ETH);
@@ -172,6 +176,8 @@ private:
             dispatch_s_buffer_size_ = 32 * 1024;  // dispatch_s only sends Go Signals -> CB can be small
             base_device_command_queue_addr = tt::tt_metal::hal.get_dev_addr(
                 tt::tt_metal::HalProgrammableCoreType::TENSIX, tt::tt_metal::HalL1MemAddrType::UNRESERVED);
+            packet_queue_ptr_buffer_size_ =
+                packet_queue::PACKET_QUEUE_MAX_NUM_QUEUES_PER_CORE * packet_queue::packet_queue_ptr_buffer_size;
         } else {
             prefetch_q_entries_ = 128;
             max_prefetch_command_size_ = 32 * 1024;
@@ -182,6 +188,8 @@ private:
             dispatch_s_buffer_size_ = 32 * 1024;  // dispatch_s only sends Go Signals -> CB can be small
             base_device_command_queue_addr = tt::tt_metal::hal.get_dev_addr(
                 tt::tt_metal::HalProgrammableCoreType::IDLE_ETH, tt::tt_metal::HalL1MemAddrType::UNRESERVED);
+            packet_queue_ptr_buffer_size_ =
+                packet_queue::PACKET_QUEUE_MAX_NUM_QUEUES_PER_CORE * packet_queue::packet_queue_ptr_buffer_size;
         }
         uint32_t pcie_alignment = tt::tt_metal::hal.get_alignment(tt::tt_metal::HalMemType::HOST);
         uint32_t l1_alignment = tt::tt_metal::hal.get_alignment(tt::tt_metal::HalMemType::L1);
@@ -206,6 +214,9 @@ private:
                 device_cq_addr_sizes_[dev_addr_idx] = DISPATCH_MESSAGE_ENTRIES * l1_alignment;
             } else if (dev_addr_type == CommandQueueDeviceAddrType::DISPATCH_MESSAGE) {
                 device_cq_addr_sizes_[dev_addr_idx] = DISPATCH_MESSAGE_ENTRIES * l1_alignment;
+            } else if (dev_addr_type == CommandQueueDeviceAddrType::PACKET_QUEUE_PTRS) {
+                device_cq_addr_sizes_[dev_addr_idx] =
+                    packet_queue::PACKET_QUEUE_MAX_NUM_QUEUES_PER_CORE * packet_queue::packet_queue_ptr_buffer_size;
             } else {
                 device_cq_addr_sizes_[dev_addr_idx] = l1_alignment;
             }
@@ -255,6 +266,7 @@ private:
     uint32_t prefetch_d_buffer_size_;
     uint32_t prefetch_d_buffer_pages_;
     uint32_t dispatch_s_buffer_size_;
+    uint32_t packet_queue_ptr_buffer_size_;
     std::vector<uint32_t> device_cq_addrs_;
     static inline std::unique_ptr<dispatch_constants> inst;
     static inline uint32_t hw_cqs;

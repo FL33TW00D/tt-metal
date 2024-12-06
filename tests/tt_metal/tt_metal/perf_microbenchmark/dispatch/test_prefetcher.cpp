@@ -50,7 +50,7 @@ constexpr uint32_t DRAM_DATA_BASE_ADDR = 1024 * 1024;
 
 constexpr uint32_t PCIE_TRANSFER_SIZE_DEFAULT = 4096;
 
-constexpr uint32_t host_data_dirty_pattern = 0xbaadf00d;
+constexpr uint32_t host_data_dirty_pattern = 0xdeadbeef;
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // Test dispatch program performance
@@ -59,6 +59,7 @@ constexpr uint32_t host_data_dirty_pattern = 0xbaadf00d;
 //////////////////////////////////////////////////////////////////////////////////////////
 using std::vector;
 using namespace tt;
+using namespace packet_queue;
 
 uint32_t iterations_g = DEFAULT_ITERATIONS;
 
@@ -1875,7 +1876,7 @@ void configure_for_single_chip(
                                    (((prefetch_d_buffer_pages << dispatch_constants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE) +
                                      noc_read_alignment - 1) /
                                     noc_read_alignment * noc_read_alignment);
-        TT_ASSERT(scratch_db_base < 1024 * 1024);  // L1 size
+        TT_ASSERT(scratch_db_base < device->l1_size_per_core(), "scratch_db_base has overflowed l1");
 
         prefetch_compile_args[3] = prefetch_d_downstream_cb_sem;
         prefetch_compile_args[11] = prefetch_d_buffer_base;
@@ -1927,7 +1928,23 @@ void configure_for_single_chip(
 
             // Packetized path buffer, can be at any available address.
             uint32_t prefetch_relay_demux_queue_start_addr = l1_unreserved_base;
-            constexpr uint32_t prefetch_relay_demux_queue_size_bytes = 0x10000;
+            uint32_t prefetch_relay_demux_queue_size_bytes = prefetch_relay_mux_queue_size_bytes;
+
+            const auto packet_queue_ptrs_addr =
+                std::max(prefetch_relay_mux_queue_start_addr, prefetch_relay_demux_queue_start_addr) +
+                std::max(prefetch_relay_mux_queue_size_bytes, prefetch_relay_demux_queue_size_bytes);
+            const auto queue0_ptr_addr = packet_queue_ptrs_addr;
+            const auto queue1_ptr_addr = queue0_ptr_addr + packet_queue_ptr_buffer_size;
+            const auto queue2_ptr_addr = queue1_ptr_addr + packet_queue_ptr_buffer_size;
+            const auto queue3_ptr_addr = queue2_ptr_addr + packet_queue_ptr_buffer_size;
+            const auto queue4_ptr_addr = queue3_ptr_addr + packet_queue_ptr_buffer_size;
+
+            TT_ASSERT(queue4_ptr_addr < device->l1_size_per_core(), "queue4_ptr_addr has overflowed l1");
+
+            // Check none of the packet queue ptrs aliased with the dispatch_wait_addr_g
+            TT_ASSERT(
+                dispatch_wait_addr_g >= queue0_ptr_addr || dispatch_wait_addr_g <= queue4_ptr_addr,
+                "dispatch_wait_addr_g has aliased with packet queue ptrs");
 
             // For tests with checkers enabled, packetized path may time out and
             // cause the test to fail.
@@ -1953,33 +1970,21 @@ void configure_for_single_chip(
                     (uint32_t)phys_prefetch_core_g.x,
                     (uint32_t)phys_prefetch_core_g.y,
                     1,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 4: src 0 info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    1,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 5: src 1 info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    1,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 6: src 2 info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    1,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 7: src 3 info
-                (prefetch_relay_demux_queue_start_addr >> 4),    // 8: remote_tx_queue_start_addr_words
-                (prefetch_relay_demux_queue_size_bytes >> 4),    // 9: remote_tx_queue_size_words
-                (uint32_t)phys_prefetch_relay_demux_core.x,      // 10: remote_tx_x
-                (uint32_t)phys_prefetch_relay_demux_core.y,      // 11: remote_tx_y
-                0,                                               // 12: remote_tx_queue_id
-                (uint32_t)DispatchRemoteNetworkType::NOC0,       // 13: tx_network_type
-                packetized_path_test_results_addr,               // 14: test_results_addr
-                packetized_path_test_results_size,               // 15: test_results_size
-                timeout_mcycles * 1000 * 1000,                   // 16: timeout_cycles
-                0x0,                                             // 17: output_depacketize
-                0x0,                                             // 18: output_depacketize info
+                    DispatchRemoteNetworkType::NOC0),                             // 4: src 0 info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 5: src 1 info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 6: src 2 info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 7: src 3 info
+                (prefetch_relay_demux_queue_start_addr >> 4),                     // 8: remote_tx_queue_start_addr_words
+                (prefetch_relay_demux_queue_size_bytes >> 4),                     // 9: remote_tx_queue_size_words
+                (uint32_t)phys_prefetch_relay_demux_core.x,                       // 10: remote_tx_x
+                (uint32_t)phys_prefetch_relay_demux_core.y,                       // 11: remote_tx_y
+                0,                                                                // 12: remote_tx_queue_id
+                (uint32_t)DispatchRemoteNetworkType::NOC0,                        // 13: tx_network_type
+                packetized_path_test_results_addr,                                // 14: test_results_addr
+                packetized_path_test_results_size,                                // 15: test_results_size
+                timeout_mcycles * 1000 * 1000,                                    // 16: timeout_cycles
+                0x0,                                                              // 17: output_depacketize
+                0x0,                                                              // 18: output_depacketize info
                 // 19: input 0 packetize info:
                 packet_switch_4B_pack(
                     0x1,
@@ -1991,10 +1996,22 @@ void configure_for_single_chip(
                 packet_switch_4B_pack(0, 0, 0, 0),                       // 22: input 3 packetize info
                 packet_switch_4B_pack(src_endpoint_start_id, 0, 0, 0),   // 23: packetized input src id
                 packet_switch_4B_pack(dest_endpoint_start_id, 0, 0, 0),  // 24: packetized input dest id
+                queue0_ptr_addr,                                         // 25: mux_input_ptr_buffers[0]
+                queue1_ptr_addr,                                         // 26: mux_input_ptr_buffers[1]
+                queue2_ptr_addr,                                         // 27: mux_input_ptr_buffers[2]
+                queue3_ptr_addr,                                         // 28: mux_input_ptr_buffers[3]
+                0,                                                       // 29: mux_input_remote_ptr_buffers[0]
+                0,                                                       // 30: mux_input_remote_ptr_buffers[1]
+                0,                                                       // 31: mux_input_remote_ptr_buffers[2]
+                0,                                                       // 32: mux_input_remote_ptr_buffers[3]
+                queue4_ptr_addr,                                         // 33: mux_output_ptr_buffer
+                queue4_ptr_addr,  // 34: mux_output_remote_ptr_buffer (remote is the prefetch relay demux input)
             };
 
             log_info(
                 LogTest, "run prefetch relay mux at x={},y={}", prefetch_relay_mux_core.x, prefetch_relay_mux_core.y);
+            log_info(LogTest, "prefetch_relay_mux_queue_start_addr ={}", prefetch_relay_mux_queue_start_addr);
+            log_info(LogTest, "prefetch_relay_demux_queue_start_addr ={}", prefetch_relay_demux_queue_start_addr);
 
             std::map<string, string> defines = {
                 {"FD_CORE_TYPE", std::to_string(0)},  // todo, support dispatch on eth
@@ -2022,22 +2039,10 @@ void configure_for_single_chip(
                     phys_prefetch_d_core.x,
                     phys_prefetch_d_core.y,
                     0,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 4: remote_tx_0_info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    0,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 5: remote_tx_1_info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    0,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 6: remote_tx_2_info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    0,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),     // 7: remote_tx_3_info
+                    (uint32_t)DispatchRemoteNetworkType::NOC0),                   // 4: remote_tx_0_info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 5: remote_tx_1_info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 6: remote_tx_2_info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 7: remote_tx_3_info
                 (prefetch_d_buffer_base >> 4),                      // 8: remote_tx_queue_start_addr_words 0
                 prefetch_d_buffer_size_g >> 4,                      // 9: remote_tx_queue_size_words 0
                 0,                                                  // 10: remote_tx_queue_start_addr_words 1
@@ -2065,6 +2070,16 @@ void configure_for_single_chip(
                 packet_switch_4B_pack(0, 0, 0, 0),  // 27: output 1 packetize info
                 packet_switch_4B_pack(0, 0, 0, 0),  // 28: output 2 packetize info
                 packet_switch_4B_pack(0, 0, 0, 0),  // 29: output 3 packetize info
+                queue4_ptr_addr,                    // 30: demux_input_ptr_buffer
+                queue4_ptr_addr,  // 31: demux_input_remote_ptr_buffer (remote is the prefetch relay mux output)
+                queue0_ptr_addr,  // 32: demux_output_ptr_buffers[0]
+                queue1_ptr_addr,  // 33: demux_output_ptr_buffers[1]
+                queue2_ptr_addr,  // 34: demux_output_ptr_buffers[2]
+                queue3_ptr_addr,  // 35: demux_output_ptr_buffers[3]
+                0,                // 36: demux_output_remote_ptr_buffers[0]
+                0,                // 37: demux_output_remote_ptr_buffers[1]
+                0,                // 38: demux_output_remote_ptr_buffers[2]
+                0,                // 39: demux_output_remote_ptr_buffers[3]
             };
 
             log_info(
@@ -2087,7 +2102,7 @@ void configure_for_single_chip(
     } else {
         uint32_t scratch_db_base =
             cmddat_q_base + ((cmddat_q_size_g + noc_read_alignment - 1) / noc_read_alignment * noc_read_alignment);
-        TT_ASSERT(scratch_db_base < 1024 * 1024);  // L1 size
+        TT_ASSERT(scratch_db_base < device->l1_size_per_core(), "scratch_db_base has overflowed l1");
         prefetch_compile_args[13] = scratch_db_base;
 
         configure_kernel_variant<true, true>(
@@ -2203,7 +2218,23 @@ void configure_for_single_chip(
 
             // Packetized path buffer, can be at any available address.
             uint32_t dispatch_relay_demux_queue_start_addr = l1_unreserved_base;
-            constexpr uint32_t dispatch_relay_demux_queue_size_bytes = 0x10000;
+            uint32_t dispatch_relay_demux_queue_size_bytes = dispatch_relay_mux_queue_size_bytes;
+
+            const auto packet_queue_ptrs_addr =
+                std::max(dispatch_relay_mux_queue_start_addr, dispatch_relay_demux_queue_start_addr) +
+                std::max(dispatch_relay_mux_queue_size_bytes, dispatch_relay_demux_queue_size_bytes);
+            const auto queue0_ptr_addr = packet_queue_ptrs_addr;
+            const auto queue1_ptr_addr = queue0_ptr_addr + packet_queue_ptr_buffer_size;
+            const auto queue2_ptr_addr = queue1_ptr_addr + packet_queue_ptr_buffer_size;
+            const auto queue3_ptr_addr = queue2_ptr_addr + packet_queue_ptr_buffer_size;
+            const auto queue4_ptr_addr = queue3_ptr_addr + packet_queue_ptr_buffer_size;
+
+            TT_ASSERT(queue4_ptr_addr < device->l1_size_per_core(), "queue4_ptr_addr has overflowed l1");
+
+            // Check none of the packet queue ptrs aliased with the dispatch_wait_addr_g
+            TT_ASSERT(
+                dispatch_wait_addr_g >= queue0_ptr_addr || dispatch_wait_addr_g <= queue4_ptr_addr,
+                "dispatch_wait_addr_g has aliased with packet queue ptrs");
 
             // For tests with checkers enabled, packetized path may time out and
             // cause the test to fail.
@@ -2229,33 +2260,21 @@ void configure_for_single_chip(
                     (uint32_t)phys_dispatch_core.x,
                     (uint32_t)phys_dispatch_core.y,
                     1,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 4: src 0 info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    1,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 5: src 1 info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    1,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 6: src 2 info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    1,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 7: src 3 info
-                (dispatch_relay_demux_queue_start_addr >> 4),    // 8: remote_tx_queue_start_addr_words
-                (dispatch_relay_demux_queue_size_bytes >> 4),    // 9: remote_tx_queue_size_words
-                (uint32_t)phys_dispatch_relay_demux_core.x,      // 10: remote_tx_x
-                (uint32_t)phys_dispatch_relay_demux_core.y,      // 11: remote_tx_y
-                0,                                               // 12: remote_tx_queue_id
-                (uint32_t)DispatchRemoteNetworkType::NOC0,       // 13: tx_network_type
-                packetized_path_test_results_addr,               // 14: test_results_addr
-                packetized_path_test_results_size,               // 15: test_results_size
-                timeout_mcycles * 1000 * 1000,                   // 16: timeout_cycles
-                0x0,                                             // 17: output_depacketize
-                0x0,                                             // 18: output_depacketize info
+                    DispatchRemoteNetworkType::NOC0),                             // 4: src 0 info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 5: src 1 info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 6: src 2 info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 7: src 3 info
+                (dispatch_relay_demux_queue_start_addr >> 4),                     // 8: remote_tx_queue_start_addr_words
+                (dispatch_relay_demux_queue_size_bytes >> 4),                     // 9: remote_tx_queue_size_words
+                (uint32_t)phys_dispatch_relay_demux_core.x,                       // 10: remote_tx_x
+                (uint32_t)phys_dispatch_relay_demux_core.y,                       // 11: remote_tx_y
+                0,                                                                // 12: remote_tx_queue_id
+                (uint32_t)DispatchRemoteNetworkType::NOC0,                        // 13: tx_network_type
+                packetized_path_test_results_addr,                                // 14: test_results_addr
+                packetized_path_test_results_size,                                // 15: test_results_size
+                timeout_mcycles * 1000 * 1000,                                    // 16: timeout_cycles
+                0x0,                                                              // 17: output_depacketize
+                0x0,                                                              // 18: output_depacketize info
                 // 19: input 0 packetize info:
                 packet_switch_4B_pack(
                     0x1,
@@ -2267,10 +2286,22 @@ void configure_for_single_chip(
                 packet_switch_4B_pack(0, 0, 0, 0),                       // 22: input 3 packetize info
                 packet_switch_4B_pack(src_endpoint_start_id, 0, 0, 0),   // 23: packetized input src id
                 packet_switch_4B_pack(dest_endpoint_start_id, 0, 0, 0),  // 24: packetized input dest id
+                queue0_ptr_addr,                                         // 25: mux_input_ptr_buffers[0]
+                queue1_ptr_addr,                                         // 26: mux_input_ptr_buffers[1]
+                queue2_ptr_addr,                                         // 27: mux_input_ptr_buffers[2]
+                queue3_ptr_addr,                                         // 28: mux_input_ptr_buffers[3]
+                0,                                                       // 29: mux_input_remote_ptr_buffers[0]
+                0,                                                       // 30: mux_input_remote_ptr_buffers[1]
+                0,                                                       // 31: mux_input_remote_ptr_buffers[2]
+                0,                                                       // 32: mux_input_remote_ptr_buffers[3]
+                queue4_ptr_addr,                                         // 33: mux_output_ptr_buffer
+                queue4_ptr_addr,  // 34: mux_output_remote_ptr_buffer (remote is the dispatch relax demux)
             };
 
             log_info(
                 LogTest, "run dispatch relay mux at x={},y={}", dispatch_relay_mux_core.x, dispatch_relay_mux_core.y);
+            log_info(LogTest, "dispatch_relay_mux_queue_start_addr ={}", dispatch_relay_mux_queue_start_addr);
+            log_info(LogTest, "dispatch_relay_demux_queue_start_addr ={}", dispatch_relay_demux_queue_start_addr);
 
             std::map<string, string> defines = {
                 {"FD_CORE_TYPE", std::to_string(0)},  // todo, support dispatch on eth
@@ -2298,22 +2329,10 @@ void configure_for_single_chip(
                     phys_dispatch_h_core.x,
                     phys_dispatch_h_core.y,
                     0,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 4: remote_tx_0_info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    0,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 5: remote_tx_1_info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    0,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),  // 6: remote_tx_2_info
-                packet_switch_4B_pack(
-                    0,
-                    0,
-                    0,
-                    (uint32_t)DispatchRemoteNetworkType::NOC0),              // 7: remote_tx_3_info
+                    (uint32_t)DispatchRemoteNetworkType::NOC0),                   // 4: remote_tx_0_info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 5: remote_tx_1_info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 6: remote_tx_2_info
+                packet_switch_4B_pack(0, 0, 0, DispatchRemoteNetworkType::SKIP),  // 7: remote_tx_3_info
                 (dispatch_buffer_base >> 4),                                 // 8: remote_tx_queue_start_addr_words 0
                 (dispatch_buffer_page_size_g * dispatch_buffer_pages) >> 4,  // 9: remote_tx_queue_size_words 0
                 0,                                                           // 10: remote_tx_queue_start_addr_words 1
@@ -2341,6 +2360,16 @@ void configure_for_single_chip(
                 packet_switch_4B_pack(0, 0, 0, 0),  // 27: output 1 packetize info
                 packet_switch_4B_pack(0, 0, 0, 0),  // 28: output 2 packetize info
                 packet_switch_4B_pack(0, 0, 0, 0),  // 29: output 3 packetize info
+                queue4_ptr_addr,                    // 30: demux_input_ptr_buffer
+                queue4_ptr_addr,  // 31: demux_input_remote_ptr_buffer (remote is the dispatch relax mux)
+                queue0_ptr_addr,  // 32: demux_output_ptr_buffers[0]
+                queue1_ptr_addr,  // 33: demux_output_ptr_buffers[1]
+                queue2_ptr_addr,  // 34: demux_output_ptr_buffers[2]
+                queue3_ptr_addr,  // 35: demux_output_ptr_buffers[3]
+                0,                // 36: demux_output_remote_ptr_buffers[0]
+                0,                // 37: demux_output_remote_ptr_buffers[1]
+                0,                // 38: demux_output_remote_ptr_buffers[2]
+                0,                // 39: demux_output_remote_ptr_buffers[3]
             };
 
             log_info(

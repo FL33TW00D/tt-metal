@@ -268,8 +268,8 @@ template <uint32_t preamble_size>
 void relay_to_next_cb(
     uint32_t data_ptr, uint32_t length, uint32_t& block_noc_writes_to_clear, uint32_t block_next_start_addr[]) {
     static_assert(
-        preamble_size == 0 || preamble_size == sizeof(dispatch_packet_header_t),
-        "Dispatcher preamble size must be 0 or sizeof(dispatch_packet_header_t)");
+        preamble_size == 0 || preamble_size == sizeof(packet_queue::dispatch_packet_header_t),
+        "Dispatcher preamble size must be 0 or sizeof(packet_queue::dispatch_packet_header_t)");
 
     // DPRINT << "relay_to_next_cb: " << data_ptr << " " << cb_fence << " " << length << ENDL();
 

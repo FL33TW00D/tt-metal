@@ -10,10 +10,10 @@
 
 inline const char* packet_queue_test_status_to_string(uint32_t status) {
     switch (status) {
-        case PACKET_QUEUE_TEST_STARTED: return "STARTED";
-        case PACKET_QUEUE_TEST_PASS: return "DONE/OK";
-        case PACKET_QUEUE_TEST_TIMEOUT: return "TIMEOUT";
-        case PACKET_QUEUE_TEST_DATA_MISMATCH: return "DATA_MISMATCH";
+        case packet_queue::PACKET_QUEUE_TEST_STARTED: return "STARTED";
+        case packet_queue::PACKET_QUEUE_TEST_PASS: return "DONE/OK";
+        case packet_queue::PACKET_QUEUE_TEST_TIMEOUT: return "TIMEOUT";
+        case packet_queue::PACKET_QUEUE_TEST_DATA_MISMATCH: return "DATA_MISMATCH";
         default: return "UNKNOWN";
     }
 }
