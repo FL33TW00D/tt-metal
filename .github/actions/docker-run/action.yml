@@ -26,7 +26,7 @@ inputs:
     default: |
       -v /dev/hugepages-1G:/dev/hugepages-1G
       --device /dev/tenstorrent
-  prepare_metal_run:
+  prepare_test_env:
     description: "RK - this should be unneeded now"
     type: boolean
     required: false
