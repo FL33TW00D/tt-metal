@@ -64,7 +64,6 @@ jobs:
         with:
           docker_os_arch: ${{ inputs.os }}-amd64
           docker_password: ${{ secrets.GITHUB_TOKEN }}
-          prepare_test_env: true
           docker_opts: |
             -e ARCH_NAME=${{ inputs.arch}}
             -e TT_METAL_HOME=${{ github.workspace }}

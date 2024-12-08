@@ -79,7 +79,6 @@ jobs:
         with:
           docker_os_arch: ${{ inputs.os }}-amd64
           docker_password: ${{ secrets.GITHUB_TOKEN }}
-          install_wheel: true
           docker_opts: |
             -e TT_METAL_HOME=${{ github.workspace }}
             -e ARCH_NAME=${{ inputs.arch }}
