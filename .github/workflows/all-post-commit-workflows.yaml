@@ -90,7 +90,7 @@ jobs:
       runner-label: ${{ matrix.test-group.runner-label }}
   # Slow Dispatch Unit Tests
   sd-unit-tests:
-    needs: build-artifact
+    needs: build-wheels
     secrets: inherit
     strategy:
       fail-fast: false
@@ -155,7 +155,7 @@ jobs:
       runner-label: ${{ matrix.test-group.runner-label }}
   # FD C++ Unit Tests
   cpp-unit-tests:
-    needs: build-artifact
+    needs: build-wheels
     secrets: inherit
     strategy:
       fail-fast: false
