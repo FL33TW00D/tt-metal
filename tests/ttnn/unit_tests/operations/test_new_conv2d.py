@@ -2843,3 +2843,54 @@ def test_dispnetres_conv(
         # output_layout=ttnn.ROW_MAJOR_LAYOUT,
         auto_shard=True,
     )
+
+
+# bug id 9505
+@pytest.mark.parametrize("device_params", [{"l1_small_size": 32768}], indirect=True)
+@pytest.mark.parametrize(
+    "batch_size, output_channels, input_channels, input_height, input_width, filter_height, filter_width, stride_h, stride_w, pad_h, pad_w, weights_dtype, use_1d_systolic_array, config_override",
+    ((1, 1, 512, 30, 18, 3, 3, 1, 1, 1, 1, ttnn.bfloat8_b, True, {"act_block_h": 32}),),
+)
+@pytest.mark.parametrize(
+    "activations_dtype",
+    [ttnn.bfloat8_b],
+)
+@pytest.mark.parametrize("math_fidelity", [ttnn.MathFidelity.LoFi])
+def test_dispnetres_conv2(
+    device,
+    math_fidelity,
+    activations_dtype,
+    batch_size,
+    output_channels,
+    input_channels,
+    input_height,
+    input_width,
+    filter_height,
+    filter_width,
+    stride_h,
+    stride_w,
+    pad_h,
+    pad_w,
+    weights_dtype,
+    use_1d_systolic_array,
+    config_override,
+):
+    run_conv(
+        device,
+        math_fidelity,
+        activations_dtype,
+        weights_dtype,
+        batch_size,
+        output_channels,
+        input_channels,
+        input_height,
+        input_width,
+        filter_height,
+        filter_width,
+        stride_h,
+        stride_w,
+        pad_h,
+        pad_w,
+        use_1d_systolic_array,
+        config_override=config_override,
+    )
