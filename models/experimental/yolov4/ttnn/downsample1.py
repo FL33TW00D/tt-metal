@@ -20,7 +20,7 @@ class Down1:
             "down1.conv1",
             [1, 640, 640, 3],
             (1, 1, 1, 1),
-            act_block_h=240,
+            act_block_h=256,
         )
 
         self.conv2_weights, self.conv2_bias = fold_bn_to_conv_weights_bias_torch(torch_model, "down1.conv2")
@@ -56,7 +56,7 @@ class Down1:
             "down1.conv6",
             [1, 320, 320, 32],
             (1, 1, 1, 1),
-            act_block_h=240,
+            act_block_h=256,
         )
         self.conv7 = Conv(
             torch_model,
