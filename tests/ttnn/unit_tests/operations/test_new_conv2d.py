@@ -3026,4 +3026,5 @@ def test_conv_yolov4_640x640_failing_cases(
         groups=1,
         output_layout=output_layout,
         has_bias=True,
+        auto_shard=True,
     )
