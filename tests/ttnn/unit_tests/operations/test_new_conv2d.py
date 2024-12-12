@@ -2964,7 +2964,7 @@ def test_conv_vovnet_split(
             0,
             0,
             1,
-            True,
+            False,
         ),  # fails with Statically allocated circular buffers on core range
     ),
 )
@@ -3015,5 +3015,4 @@ def test_vovnet_conv_issue(
         pad_w,
         use_1d_systolic_array,
         None,
-        auto_shard=True,
     )
