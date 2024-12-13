@@ -169,6 +169,8 @@ class Conv_with_split:
         )
         if self.act_block_h is not None:
             conv_config.act_block_h_override = self.act_block_h
+        else:
+            conv_config.act_block_h_override = 32
 
         for i in range(self.split_factor):
             tt_weight_tensor = ttnn.from_torch(
@@ -179,6 +181,9 @@ class Conv_with_split:
 
             # torch_input_tensor = torch.permute(split_input_tensors[i], (0, 2, 3, 1))
             tt_input_tensor = ttnn.from_torch(split_input_tensors[i], ttnn.bfloat16)
+            print(f"Input tensor shape: {tt_input_tensor.shape}")
+            print(f"Input tensor mem cfg: {tt_input_tensor.memory_config()}")
+            print(f"act_block_h: {self.act_block_h}")
 
             [tt_output_tensor_on_device, [out_height, out_width]] = ttnn.conv2d(
                 input_tensor=tt_input_tensor,
