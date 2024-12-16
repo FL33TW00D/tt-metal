@@ -180,7 +180,7 @@ tt_l1_ptr uint32_t* const kernel_status = reinterpret_cast<tt_l1_ptr uint32_t*>(
 constexpr uint32_t timeout_cycles = get_compile_time_arg_val(46);
 constexpr uint32_t inner_stop_mux_d_bypass = get_compile_time_arg_val(47);
 
-#define SWITCH_THRESHOLD 16
+#define SWITCH_THRESHOLD 1000
 void kernel_main() {
     rtos_context_switch_ptr = (void (*)())RtosTable[0];
 
