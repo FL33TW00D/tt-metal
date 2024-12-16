@@ -17,6 +17,7 @@
 #include <utility>
 #include <variant>
 
+#include "buffers/buffer.hpp"
 #include "common/math.hpp"
 #include "dev_msgs.h"
 #include "device/device_handle.hpp"
@@ -1028,11 +1029,10 @@ void HWCommandQueue::enqueue_command(T& command, bool blocking, tt::stl::Span<co
 void HWCommandQueue::enqueue_read_buffer(
     std::shared_ptr<Buffer>& buffer,
     void* dst,
-    const size_t offset,
-    const size_t size,
+    const BufferRegion region,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
-    this->enqueue_read_buffer(*buffer, dst, offset, size, blocking, sub_device_ids);
+    this->enqueue_read_buffer(*buffer, dst, region, blocking, sub_device_ids);
 }
 
 // Read buffer command is enqueued in the issue region and device writes requested buffer data into the completion
@@ -1040,8 +1040,7 @@ void HWCommandQueue::enqueue_read_buffer(
 void HWCommandQueue::enqueue_read_buffer(
     Buffer& buffer,
     void* dst,
-    const size_t offset,
-    const size_t size,
+    const BufferRegion region,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
     ZoneScopedN("HWCommandQueue_read_buffer");
@@ -1131,25 +1130,25 @@ void HWCommandQueue::enqueue_read_buffer(
         }
     } else {
         TT_FATAL(
-            offset % buffer.page_size() == 0,
+            region.offset % buffer.page_size() == 0,
             "Offset {} must be a multiple of the buffer page size {}.",
-            offset,
+            region.offset,
             buffer.page_size());
         TT_FATAL(
-            size % buffer.page_size() == 0,
+            region.size % buffer.page_size() == 0,
             "Size {} must be a multiple of the buffer page size {}.",
-            size,
+            region.size,
             buffer.page_size());
         TT_FATAL(
-            (size + offset) <= buffer.size(),
+            (region.size + region.offset) <= buffer.size(),
             "(Size + offset) {} must be <= the buffer size {}.",
-            size + offset,
+            region.size + region.offset,
             buffer.size());
 
-        const uint32_t pages_to_read = size / buffer.page_size();
+        const uint32_t pages_to_read = region.size / buffer.page_size();
         if (pages_to_read > 0) {
             uint32_t bank_base_address = buffer.address();
-            src_page_index = offset / buffer.page_size();
+            src_page_index = region.offset / buffer.page_size();
             if (src_page_index > 15) {
                 const uint32_t num_banks = this->device->num_banks(buffer.buffer_type());
                 const uint32_t num_pages_per_bank = src_page_index / num_banks;
@@ -1192,8 +1191,7 @@ void HWCommandQueue::enqueue_read_buffer(
 void HWCommandQueue::enqueue_write_buffer(
     std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
     HostDataType src,
-    const size_t offset,
-    const size_t size,
+    const BufferRegion region,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
     // Top level API to accept different variants for buffer and src
@@ -1214,7 +1212,7 @@ void HWCommandQueue::enqueue_write_buffer(
             return b.get();
         }
     }, buffer);
-    this->enqueue_write_buffer(b, data, offset, size, blocking, sub_device_ids);
+    this->enqueue_write_buffer(b, data, region, blocking, sub_device_ids);
 }
 
 CoreType HWCommandQueue::get_dispatch_core_type() {
@@ -1224,8 +1222,7 @@ CoreType HWCommandQueue::get_dispatch_core_type() {
 void HWCommandQueue::enqueue_write_buffer(
     Buffer& buffer,
     const void* src,
-    const size_t offset,
-    const size_t size,
+    const BufferRegion region,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
     ZoneScopedN("HWCommandQueue_write_buffer");
@@ -1332,8 +1329,8 @@ void HWCommandQueue::enqueue_write_buffer(
             }
         }
     } else {
-        dst_page_index = offset / buffer.page_size();
-        uint32_t num_pages = size / buffer.page_size();
+        dst_page_index = region.offset / buffer.page_size();
+        uint32_t num_pages = region.size / buffer.page_size();
         uint32_t total_pages_to_write = num_pages;
         bool write_partial_pages = padded_page_size > max_data_sizeB;
         uint32_t page_size_to_write = padded_page_size;
@@ -1455,7 +1452,8 @@ void HWCommandQueue::enqueue_program(Program& program, bool blocking) {
         TT_FATAL(!this->manager.get_bypass_mode(), "Tracing cannot be used while validating program binaries");
         if (const auto buffer = program.get_kernels_buffer(device)) {
             std::vector<uint32_t> read_data(buffer->page_size() * buffer->num_pages() / sizeof(uint32_t));
-            this->enqueue_read_buffer(*buffer, read_data.data(), 0, buffer->size(), true, sub_device_ids);
+            const BufferRegion region(0, buffer->size());
+            this->enqueue_read_buffer(*buffer, read_data.data(), region, true, sub_device_ids);
             TT_FATAL(
                 program.get_program_transfer_info().binary_data == read_data,
                 "Binary for program to be executed is corrupted. Another program likely corrupted this binary");
@@ -1514,7 +1512,8 @@ void HWCommandQueue::enqueue_program(Program& program, bool blocking) {
         TT_FATAL(!this->manager.get_bypass_mode(), "Tracing cannot be used while validating program binaries");
         if (const auto buffer = program.get_kernels_buffer(device)) {
             std::vector<uint32_t> read_data(buffer->page_size() * buffer->num_pages() / sizeof(uint32_t));
-            this->enqueue_read_buffer(*buffer, read_data.data(), 0, buffer->size(), true, sub_device_ids);
+            const BufferRegion region(0, buffer->size());
+            this->enqueue_read_buffer(*buffer, read_data.data(), region, true, sub_device_ids);
             TT_FATAL(
                 program.get_program_transfer_info().binary_data == read_data,
                 "Binary for program that executed is corrupted. This program likely corrupted its own binary.");
@@ -2097,8 +2096,8 @@ void EnqueueReadBuffer(
     void* dst,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
-    const size_t offset = 0;
-    const size_t size = std::visit(
+    const DeviceAddr offset = 0;
+    const DeviceAddr size = std::visit(
         [](auto&& buf) -> size_t {
             using T = std::decay_t<decltype(buf)>;
             if constexpr (std::is_same_v<T, std::reference_wrapper<Buffer>>) {
@@ -2108,15 +2107,15 @@ void EnqueueReadBuffer(
             }
         },
         buffer);
-    EnqueueReadSubBuffer(cq, buffer, dst, offset, size, blocking, sub_device_ids);
+    BufferRegion region(offset, size);
+    EnqueueReadSubBuffer(cq, buffer, dst, region, blocking, sub_device_ids);
 }
 
 void EnqueueReadSubBuffer(
     CommandQueue& cq,
     std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
     void* dst,
-    const size_t offset,
-    const size_t size,
+    const BufferRegion region,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
     detail::DispatchStateCheck(true);
@@ -2125,8 +2124,7 @@ void EnqueueReadSubBuffer(
         .blocking = blocking,
         .buffer = buffer,
         .dst = dst,
-        .offset = offset,
-        .size = size,
+        .region = region,
         .sub_device_ids = sub_device_ids});
 }
 
@@ -2136,8 +2134,8 @@ void EnqueueWriteBuffer(
     HostDataType src,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
-    const size_t offset = 0;
-    const size_t size = std::visit(
+    const DeviceAddr offset = 0;
+    const DeviceAddr size = std::visit(
         [](auto&& buf) -> size_t {
             using T = std::decay_t<decltype(buf)>;
             if constexpr (std::is_same_v<T, std::reference_wrapper<Buffer>>) {
@@ -2147,15 +2145,15 @@ void EnqueueWriteBuffer(
             }
         },
         buffer);
-    EnqueueWriteSubBuffer(cq, buffer, src, offset, size, blocking, sub_device_ids);
+    BufferRegion region(offset, size);
+    EnqueueWriteSubBuffer(cq, buffer, src, region, blocking, sub_device_ids);
 }
 
 void EnqueueWriteSubBuffer(
     CommandQueue& cq,
     std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
     HostDataType src,
-    const size_t offset,
-    const size_t size,
+    const BufferRegion region,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
     detail::DispatchStateCheck(true);
@@ -2164,8 +2162,7 @@ void EnqueueWriteSubBuffer(
         .blocking = blocking,
         .buffer = buffer,
         .src = std::move(src),
-        .offset = offset,
-        .size = size,
+        .region = region,
         .sub_device_ids = sub_device_ids});
 }
 
@@ -2256,8 +2253,7 @@ void EnqueueReadBufferImpl(
     CommandQueue& cq,
     std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
     void* dst,
-    const size_t offset,
-    const size_t size,
+    const BufferRegion region,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
     std::visit(
@@ -2265,7 +2261,7 @@ void EnqueueReadBufferImpl(
             using T = std::decay_t<decltype(b)>;
             if constexpr (
                 std::is_same_v<T, std::reference_wrapper<Buffer>> || std::is_same_v<T, std::shared_ptr<Buffer>>) {
-                cq.hw_command_queue().enqueue_read_buffer(b, dst, offset, size, blocking, sub_device_ids);
+                cq.hw_command_queue().enqueue_read_buffer(b, dst, region, blocking, sub_device_ids);
             }
         },
         buffer);
@@ -2275,11 +2271,10 @@ void EnqueueWriteBufferImpl(
     CommandQueue& cq,
     std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
     HostDataType src,
-    const size_t offset,
-    const size_t size,
+    const BufferRegion region,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
-    cq.hw_command_queue().enqueue_write_buffer(std::move(buffer), std::move(src), offset, size, blocking, sub_device_ids);
+    cq.hw_command_queue().enqueue_write_buffer(std::move(buffer), std::move(src), region, blocking, sub_device_ids);
 }
 
 void EnqueueProgramImpl(
@@ -2478,14 +2473,12 @@ void CommandQueue::run_command_impl(const CommandInterface& command) {
             TT_ASSERT(command.dst.has_value(), "Must provide a dst!");
             TT_ASSERT(command.buffer.has_value(), "Must provide a buffer!");
             TT_ASSERT(command.blocking.has_value(), "Must specify blocking value!");
-            TT_ASSERT(command.offset.has_value(), "Must specify offset value!");
-            TT_ASSERT(command.size.has_value(), "Must specify size value!");
+            TT_ASSERT(command.region.has_value(), "Must specify region value!");
             EnqueueReadBufferImpl(
                 *this,
                 command.buffer.value(),
                 command.dst.value(),
-                command.offset.value(),
-                command.size.value(),
+                command.region.value(),
                 command.blocking.value(),
                 command.sub_device_ids);
             break;
@@ -2493,14 +2486,12 @@ void CommandQueue::run_command_impl(const CommandInterface& command) {
             TT_ASSERT(command.src.has_value(), "Must provide a src!");
             TT_ASSERT(command.buffer.has_value(), "Must provide a buffer!");
             TT_ASSERT(command.blocking.has_value(), "Must specify blocking value!");
-            TT_ASSERT(command.offset.has_value(), "Must specify offset value!");
-            TT_ASSERT(command.size.has_value(), "Must specify size value!");
+            TT_ASSERT(command.region.has_value(), "Must specify region value!");
             EnqueueWriteBufferImpl(
                 *this,
                 command.buffer.value(),
                 command.src.value(),
-                command.offset.value(),
-                command.size.value(),
+                command.region.value(),
                 command.blocking.value(),
                 command.sub_device_ids);
             break;
