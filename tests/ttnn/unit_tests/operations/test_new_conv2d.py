@@ -2788,3 +2788,79 @@ def test_shallow_conv_with_tiled_input(device):
     passing, pcc_msg = check_with_pcc_without_tensor_printout(torch_output_tensor, torch_out_golden_tensor, pcc=0.99)
     logger.info(f"PCC = {pcc_msg}. Threshold = 0.99")
     assert passing
+
+
+@skip_for_grayskull()
+@pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
+def test_transposed_conv_and_reshard(device):
+    # Conv attributes
+    batch_size = 1
+    input_channels = 256
+    output_channels = 256
+    input_height = 8
+    input_width = 8
+    filter_height = 3
+    filter_width = 3
+    groups = 1
+    stride_h = 1
+    stride_w = 1
+    pad_h = 1
+    pad_w = 1
+    out_pad_h = 0
+    out_pad_w = 0
+    dilation = 1
+
+    conv_input_shape = [batch_size, input_channels, input_height, input_width]
+    conv_weight_shape = [input_channels, output_channels // groups, filter_height, filter_width]
+    conv_bias_shape = [1, 1, 1, output_channels]
+
+    # Create torch input tensors
+    torch_input_tensor_nchw = torch.randn(conv_input_shape, dtype=torch.bfloat16).float()
+    torch_input_tensor = torch.permute(torch_input_tensor_nchw, (0, 2, 3, 1))
+    torch_weight_tensor = torch.randn(conv_weight_shape, dtype=torch.bfloat16).float()
+    torch_bias_tensor = torch.randn(conv_bias_shape, dtype=torch.bfloat16).float()
+
+    # Create ttnn input tensors
+    tt_input_tensor = ttnn.from_torch(torch_input_tensor, ttnn.bfloat16)
+    tt_weight_tensor = ttnn.from_torch(torch_weight_tensor, ttnn.bfloat16)
+    tt_bias_tensor = ttnn.from_torch(torch_bias_tensor, ttnn.bfloat16)
+
+    shard_layout = ttnn.TensorMemoryLayout.BLOCK_SHARDED
+    conv_config = ttnn.Conv2dConfig(
+        dtype=ttnn.bfloat16,
+        weights_dtype=ttnn.bfloat16,
+        # math_fidelity=ttnn.MathFidelity.HiFi4,
+        shard_layout=shard_layout,
+        input_channels_alignment=(32),
+        deallocate_activation=False,
+        # fp32_dest_acc_enabled=False,
+        # packer_l1_accum_enabled=False,
+        enable_act_double_buffer=False,
+        enable_split_reader=False,
+        enable_subblock_padding=False,
+        output_layout=ttnn.ROW_MAJOR_LAYOUT,
+    )
+
+    [tt_output_tensor_on_device, out_height, out_width, weights_device, bias_device] = ttnn.conv_transpose2d(
+        input_tensor=tt_input_tensor,
+        weight_tensor=tt_weight_tensor,
+        in_channels=input_channels,
+        out_channels=output_channels,
+        device=device,
+        bias_tensor=tt_bias_tensor,
+        kernel_size=(filter_height, filter_width),
+        stride=(stride_h, stride_w),
+        padding=(pad_h, pad_w),
+        output_padding=(out_pad_h, out_pad_w),
+        dilation=(dilation, dilation),
+        batch_size=batch_size,
+        input_height=input_height,
+        input_width=input_width,
+        conv_config=conv_config,
+        groups=groups,
+    )
+
+    tt_output_tensor_on_device = ttnn.reshape(tt_output_tensor_on_device, ttnn.Shape([1, 8, 8, 256]))
+    torch_output_tensor = ttnn.to_torch((tt_output_tensor_on_device).cpu())
+
+    print(torch_output_tensor.shape)
