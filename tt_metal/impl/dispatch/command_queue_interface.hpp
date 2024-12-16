@@ -222,6 +222,7 @@ private:
             }
         }
 
+        const uint32_t l1_size = core_type == CoreType::WORKER ? HAL_MEM_L1_SIZE : HAL_MEM_ETH_SIZE;
         device_cq_addrs_.resize(num_dev_cq_addrs);
         device_cq_addrs_[0] = base_device_command_queue_addr;
         for (auto dev_addr_idx = 1; dev_addr_idx < num_dev_cq_addrs; dev_addr_idx++) {
@@ -231,6 +232,7 @@ private:
             if (dev_addr_type == CommandQueueDeviceAddrType::UNRESERVED) {
                 device_cq_addrs_[dev_addr_idx] = align(device_cq_addrs_[dev_addr_idx], pcie_alignment);
             }
+            TT_ASSERT(device_cq_addrs_[dev_addr_idx] < l1_size, "device_cq_addrs_[{}]", dev_addr_idx);
         }
 
         prefetch_q_size_ = prefetch_q_entries_ * sizeof(prefetch_q_entry_type);
@@ -240,7 +242,6 @@ private:
         cmddat_q_base_ = prefetch_dispatch_unreserved_base +
                          ((prefetch_q_size_ + pcie_alignment - 1) / pcie_alignment * pcie_alignment);
         scratch_db_base_ = cmddat_q_base_ + ((cmddat_q_size_ + pcie_alignment - 1) / pcie_alignment * pcie_alignment);
-        const uint32_t l1_size = core_type == CoreType::WORKER ? HAL_MEM_L1_SIZE : HAL_MEM_ETH_SIZE;
         TT_ASSERT(scratch_db_base_ + scratch_db_size_ < l1_size);
         dispatch_buffer_base_ =
             ((prefetch_dispatch_unreserved_base - 1) | ((1 << DISPATCH_BUFFER_LOG_PAGE_SIZE) - 1)) + 1;

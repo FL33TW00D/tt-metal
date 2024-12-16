@@ -23,11 +23,6 @@ static constexpr uint32_t NUM_PTR_REGS_PER_OUTPUT_QUEUE = 2;
 
 constexpr ProgrammableCoreType fd_core_type = static_cast<ProgrammableCoreType>(FD_CORE_TYPE);
 
-static constexpr uint32_t k_MaxInputOutputQueues = 10;
-static_assert(k_MaxInputOutputQueues >= MAX_SWITCH_FAN_IN);
-static_assert(k_MaxInputOutputQueues >= MAX_SWITCH_FAN_OUT);
-static_assert(k_MaxInputOutputQueues >= MAX_TUNNEL_LANES);
-
 /*
 **********************
 *                    *
@@ -225,7 +220,7 @@ using select_output_queue_t =
 class PacketInputQueueVariant {
 private:
     // Static assert to ensure the specialized classes do not exceed this hardcoded storage size
-    static constexpr size_t k_QueueSize = 112;
+    static constexpr size_t k_QueueSize = 128;
     alignas(16) std::byte storage[k_QueueSize];
 
 public:
@@ -256,7 +251,7 @@ class PacketOutputQueueVariant {
 private:
     // Output queue is expected to be larger than the input queue due to the additional
     // state tracking that's needed
-    static constexpr size_t k_QueueSize = 196;
+    static constexpr size_t k_QueueSize = 156;
     alignas(16) std::byte storage[k_QueueSize];
 
 public:
@@ -349,22 +344,38 @@ struct init_params_t {
 // DisableRemotePtr will disable the remote ptr updates if the implementation uses a custom method.
 template <typename T, typename R, bool DisableRemotePtr>
 class packet_queue_base_t {
-private:
+protected:
     // static constexpr uint32_t k_ReservedWords = 1;
 
     // All pointers are in the units of words
     // to get the actual address, need to multiply it by the word size.
-    volatile uint32_t* wptr;
-    volatile uint32_t* rptr_sent;
-    volatile uint32_t* rptr_cleared;
+    // volatile uint32_t* wptr;
+    // volatile uint32_t* rptr_sent;
+    // volatile uint32_t* rptr_cleared;
 
-    uint32_t* shadow_remote_wptr;
-    uint32_t* shadow_remote_rptr_sent;
-    uint32_t* shadow_remote_rptr_cleared;
+    // uint32_t* shadow_remote_wptr;
+    // uint32_t* shadow_remote_rptr_sent;
+    // uint32_t* shadow_remote_rptr_cleared;
 
-    uint32_t remote_wptr_addr;
-    uint32_t remote_rptr_sent_addr;
-    uint32_t remote_rptr_cleared_addr;
+    // uint32_t remote_wptr_addr;
+    // uint32_t remote_rptr_sent_addr;
+    // uint32_t remote_rptr_cleared_addr;
+
+    volatile uint32_t* local_wptr_val;
+    volatile uint32_t* local_rptr_sent_val;
+    volatile uint32_t* local_rptr_cleared_val;
+
+    volatile uint32_t* local_wptr_update;
+    volatile uint32_t* local_rptr_sent_update;
+    volatile uint32_t* local_rptr_cleared_update;
+
+    uint32_t remote_wptr_update_addr;
+    uint32_t remote_rptr_sent_update_addr;
+    uint32_t remote_rptr_cleared_update_addr;
+
+    uint32_t local_wptr;
+    uint32_t local_rptr_sent;
+    uint32_t local_rptr_cleared;
 
     uint32_t queue_id;
     uint32_t queue_start_addr_words;
@@ -400,7 +411,6 @@ private:
     //     }
     // }
 
-protected:
     R remote;
 
     packet_queue_base_t() = default;
@@ -423,40 +433,48 @@ public:
         this->remote_x = params->remote_x;
         this->remote_y = params->remote_y;
 
+        this->local_wptr = 0;
+        this->local_rptr_sent = 0;
+        this->local_rptr_cleared = 0;
+
         this->queue_size_mask = (this->queue_size_words << 1) - 1;
         this->ptr_offset_mask = this->queue_size_words - 1;
 
-        this->remote_wptr_addr =
-            reinterpret_cast<uint32_t>(packet_queue_ptr_buffer_layout_t::get_wptr(params->remote_ptrs_addr));
-        this->remote_rptr_sent_addr =
-            reinterpret_cast<uint32_t>(packet_queue_ptr_buffer_layout_t::get_rptr_sent(params->remote_ptrs_addr));
-        this->remote_rptr_cleared_addr =
-            reinterpret_cast<uint32_t>(packet_queue_ptr_buffer_layout_t::get_rptr_cleared(params->remote_ptrs_addr));
+        this->remote_wptr_update_addr = STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_INPUT_QUEUE * remote_queue_id, STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_UPDATE_REG_INDEX);
+        uint32_t adjusted_remote_queue_id = remote_queue_id > 15 ? remote_queue_id - 11 : remote_queue_id;
+        this->remote_rptr_sent_update_addr = STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_OUTPUT_QUEUE * adjusted_remote_queue_id,
+            STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_UPDATE_REG_INDEX);
+        this->remote_rptr_cleared_update_addr = STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_OUTPUT_QUEUE * adjusted_remote_queue_id + 1,
+            STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_UPDATE_REG_INDEX);
 
-        this->wptr = packet_queue_ptr_buffer_layout_t::get_wptr(params->ptrs_addr);
-        this->rptr_sent = packet_queue_ptr_buffer_layout_t::get_rptr_sent(params->ptrs_addr);
-        this->rptr_cleared = packet_queue_ptr_buffer_layout_t::get_rptr_cleared(params->ptrs_addr);
-        this->shadow_remote_wptr = packet_queue_ptr_buffer_layout_t::get_shadow_remote_wptr(params->ptrs_addr);
-        this->shadow_remote_rptr_sent =
-            packet_queue_ptr_buffer_layout_t::get_shadow_remote_rptr_sent(params->ptrs_addr);
-        this->shadow_remote_rptr_cleared =
-            packet_queue_ptr_buffer_layout_t::get_shadow_remote_rptr_cleared(params->ptrs_addr);
+        // this->remote_wptr_addr =
+        //     reinterpret_cast<uint32_t>(packet_queue_ptr_buffer_layout_t::get_wptr(params->remote_ptrs_addr));
+        // this->remote_rptr_sent_addr =
+        //     reinterpret_cast<uint32_t>(packet_queue_ptr_buffer_layout_t::get_rptr_sent(params->remote_ptrs_addr));
+        // this->remote_rptr_cleared_addr =
+        //     reinterpret_cast<uint32_t>(packet_queue_ptr_buffer_layout_t::get_rptr_cleared(params->remote_ptrs_addr));
+
+        // this->wptr = packet_queue_ptr_buffer_layout_t::get_wptr(params->ptrs_addr);
+        // this->rptr_sent = packet_queue_ptr_buffer_layout_t::get_rptr_sent(params->ptrs_addr);
+        // this->rptr_cleared = packet_queue_ptr_buffer_layout_t::get_rptr_cleared(params->ptrs_addr);
+        // this->shadow_remote_wptr = packet_queue_ptr_buffer_layout_t::get_shadow_remote_wptr(params->ptrs_addr);
+        // this->shadow_remote_rptr_sent =
+        //     packet_queue_ptr_buffer_layout_t::get_shadow_remote_rptr_sent(params->ptrs_addr);
+        // this->shadow_remote_rptr_cleared =
+        //     packet_queue_ptr_buffer_layout_t::get_shadow_remote_rptr_cleared(params->ptrs_addr);
 
         // Reset local values
-        *this->wptr = 0;
-        *this->rptr_sent = 0;
-        *this->rptr_cleared = 0;
-        *this->shadow_remote_wptr = 0;
-        *this->shadow_remote_rptr_sent = 0;
-        *this->shadow_remote_rptr_cleared = 0;
+        // *this->wptr = 0;
+        // *this->rptr_sent = 0;
+        // *this->rptr_cleared = 0;
+        // *this->shadow_remote_wptr = 0;
+        // *this->shadow_remote_rptr_sent = 0;
+        // *this->shadow_remote_rptr_cleared = 0;
 
-        this->remote.init(
-            params->queue_id,
-            params->remote_queue_id,
-            params->remote_x,
-            params->remote_y,
-            params->ptrs_addr,
-            params->remote_ptrs_addr);
+        this->remote.init(params->ptrs_addr, params->remote_ptrs_addr);
 
         // Call child init
         this->impl()->_init(params);
@@ -475,11 +493,20 @@ public:
 
     inline uint32_t get_queue_size_words() const { return this->queue_size_words; }
 
-    inline uint32_t get_queue_local_wptr() const { return *this->wptr; }
+    inline uint32_t get_queue_local_wptr() const {
+        return *this->local_wptr_val;
+        // return *this->wptr;
+    }
 
-    inline uint32_t get_queue_local_rptr_sent() const { return *this->rptr_sent; }
+    inline uint32_t get_queue_local_rptr_sent() const {
+        return *this->local_rptr_sent_val;
+        // return *this->rptr_sent;
+    }
 
-    inline uint32_t get_queue_local_rptr_cleared() const { return *this->rptr_cleared; }
+    inline uint32_t get_queue_local_rptr_cleared() const {
+        return *this->local_rptr_cleared_val;
+        // return *this->rptr_cleared;
+    }
 
     inline uint32_t get_queue_wptr_offset_words() const { return this->get_queue_local_wptr() & this->ptr_offset_mask; }
 
@@ -554,62 +581,80 @@ public:
             PACKET_QUEUE_REMOTE_FINISHED_FLAG;
     }
 
-    inline void set_final_remote_xy(uint8_t x, uint8_t y) {
-        this->remote.init(this->queue_id, this->remote_queue_id, x, y, 0, 0);
+    inline void set_remote_queue(uint8_t remote_queue_id, uint32_t remote_x, uint32_t remote_y) {
+        this->remote_x = remote_x;
+        this->remote_y = remote_y;
+        this->remote_queue_id = remote_queue_id;
     }
-
-    inline void set_remote_queue_id(uint8_t remote_queue_id) { this->remote_queue_id = remote_queue_id; }
 
     inline void send_remote_finished_notification() {
         this->remote.reg_update(
-            STREAM_REG_ADDR(this->remote_queue_id, STREAM_REMOTE_SRC_REG_INDEX), PACKET_QUEUE_REMOTE_FINISHED_FLAG);
+            STREAM_REG_ADDR(this->remote_queue_id, STREAM_REMOTE_SRC_REG_INDEX),
+            PACKET_QUEUE_REMOTE_FINISHED_FLAG,
+            this->remote_x,
+            this->remote_y);
     }
 
     inline void send_remote_ready_notification() {
         this->remote.reg_update(
-            STREAM_REG_ADDR(this->remote_queue_id, STREAM_REMOTE_SRC_REG_INDEX), PACKET_QUEUE_REMOTE_READY_FLAG);
+            STREAM_REG_ADDR(this->remote_queue_id, STREAM_REMOTE_SRC_REG_INDEX),
+            PACKET_QUEUE_REMOTE_READY_FLAG,
+            this->remote_x,
+            this->remote_y);
     }
 
     inline void advance_queue_local_wptr(uint32_t num_words) {
-        *this->wptr += num_words;
+        this->impl()->_advance_queue_local_wptr(num_words);
+        // *this->wptr += num_words;
         // *this->wptr = wrap_ptr(*this->wptr + num_words);
     }
 
     inline void advance_queue_local_rptr_sent(uint32_t num_words) {
-        *this->rptr_sent += num_words;
+        this->impl()->_advance_queue_local_rptr_sent(num_words);
+        // *this->rptr_sent += num_words;
         // *this->rptr_sent = wrap_ptr(*this->rptr_sent + num_words);
     }
 
     inline void advance_queue_local_rptr_cleared(uint32_t num_words) {
-        *this->rptr_cleared += num_words;
+        this->impl()->_advance_queue_local_rptr_cleared(num_words);
+        // *this->rptr_cleared += num_words;
         // *this->rptr_cleared = wrap_ptr(*this->rptr_cleared + num_words);
     }
 
     inline void advance_queue_remote_wptr(uint32_t num_words) {
         if constexpr (!DisableRemotePtr) {
-            *this->shadow_remote_wptr += num_words;
+            uint32_t val = num_words << REMOTE_DEST_BUF_WORDS_FREE_INC;
+            uint32_t reg_addr = this->remote_wptr_update_addr;
+            this->remote.reg_update(reg_addr, val, this->remote_x, this->remote_y);
+            // *this->shadow_remote_wptr += num_words;
             // *this->shadow_remote_wptr = wrap_ptr(*this->shadow_remote_wptr + num_words);
-            this->remote.ptr_update((uint32_t)this->shadow_remote_wptr, this->remote_wptr_addr, PtrUpdateType::WPTR);
+            // this->remote.ptr_update((uint32_t)this->shadow_remote_wptr, this->remote_wptr_addr, PtrUpdateType::WPTR);
         }
     }
 
     inline void advance_queue_remote_rptr_sent(uint32_t num_words) {
         if constexpr (!DisableRemotePtr) {
+            uint32_t val = num_words << REMOTE_DEST_BUF_WORDS_FREE_INC;
+            uint32_t reg_addr = this->remote_rptr_sent_update_addr;
+            this->remote.reg_update(reg_addr, val, this->remote_x, this->remote_y);
             // *this->shadow_remote_rptr_sent = wrap_ptr(*this->shadow_remote_rptr_sent + num_words);
-            *this->shadow_remote_rptr_sent += num_words;
-            this->remote.ptr_update(
-                (uint32_t)this->shadow_remote_rptr_sent, this->remote_rptr_sent_addr, PtrUpdateType::RPTR_SENT);
+            // *this->shadow_remote_rptr_sent += num_words;
+            // this->remote.ptr_update(
+            //     (uint32_t)this->shadow_remote_rptr_sent, this->remote_rptr_sent_addr, PtrUpdateType::RPTR_SENT);
         }
     }
 
     inline void advance_queue_remote_rptr_cleared(uint32_t num_words) {
         if constexpr (!DisableRemotePtr) {
+            uint32_t val = num_words << REMOTE_DEST_BUF_WORDS_FREE_INC;
+            uint32_t reg_addr = this->remote_rptr_cleared_update_addr;
+            this->remote.reg_update(reg_addr, val, this->remote_x, this->remote_y);
             // *this->shadow_remote_rptr_cleared = wrap_ptr(*this->shadow_remote_rptr_cleared + num_words);
-            *this->shadow_remote_rptr_cleared += num_words;
-            this->remote.ptr_update(
-                (uint32_t)this->shadow_remote_rptr_cleared,
-                this->remote_rptr_cleared_addr,
-                PtrUpdateType::RPTR_CLEARED);
+            // *this->shadow_remote_rptr_cleared += num_words;
+            // this->remote.ptr_update(
+            //     (uint32_t)this->shadow_remote_rptr_cleared,
+            //     this->remote_rptr_cleared_addr,
+            //     PtrUpdateType::RPTR_CLEARED);
         }
     }
 
@@ -751,8 +796,29 @@ protected:
 
     void set_curr_packet_flags(uint16_t flags) { this->curr_packet_flags = flags; }
 
+    void _advance_queue_local_wptr(uint32_t num_words) {
+        *this->local_wptr_update = num_words << REMOTE_DEST_BUF_WORDS_FREE_INC;
+    }
+
+    void _advance_queue_local_rptr_sent(uint32_t num_words) { this->local_rptr_sent += num_words; }
+
+    void _advance_queue_local_rptr_cleared(uint32_t num_words) { this->local_rptr_cleared += num_words; }
+
     void _init(const init_params_t* params) {
         this->curr_packet_valid = false;
+
+        this->local_wptr_val = reinterpret_cast<volatile uint32_t*>(STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_INPUT_QUEUE * params->queue_id, STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_REG_INDEX));
+        this->local_rptr_sent_val = &this->local_rptr_sent;
+        this->local_rptr_cleared_val = &this->local_rptr_cleared;
+
+        this->local_wptr_update = reinterpret_cast<volatile uint32_t*>(STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_INPUT_QUEUE * params->queue_id, STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_UPDATE_REG_INDEX));
+
+        // Reset local wptr
+        *reinterpret_cast<volatile uint32_t*>(STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_INPUT_QUEUE * params->queue_id, STREAM_REMOTE_DEST_BUF_SIZE_REG_INDEX)) = 0;
+
         this->impl()->_init(params);
     };
 
@@ -989,7 +1055,6 @@ class packet_queue_output_t
           DisableRemotePtr> {
 private:
     static_assert(InputNetworkTypeSequence::size == InputCBSequence::size);
-    static_assert(InputNetworkTypeSequence::size <= k_MaxInputOutputQueues);
 
     friend packet_queue_base_t<
         packet_queue_output_t<T, R, InputNetworkTypeSequence, InputCBSequence, DisableRemotePtr>,
@@ -1004,7 +1069,7 @@ private:
     PacketInputQueueVariant* input_queues;
     uint32_t num_input_queues;
 
-    uint32_t words_in_flight[2 * k_MaxInputOutputQueues];  // 2X for curr and prev
+    uint32_t words_in_flight[2 * MAX_SWITCH_FAN_IN];  // 2X for curr and prev
     uint32_t unpacketizer_page_words_sent;
     bool unpacketizer_remove_header;
 
@@ -1022,8 +1087,28 @@ protected:
 
     void _init(const init_params_t* params) {
         WAYPOINT("PQO0");
-        ASSERT(params->num_input_queues <= k_MaxInputOutputQueues);
+        ASSERT(params->num_input_queues <= MAX_SWITCH_FAN_IN);
         WAYPOINT("PQO1");
+
+        this->local_wptr_val = &this->local_wptr;
+        uint32_t adjusted_queue_id = params->queue_id > 15 ? params->queue_id - 11 : params->queue_id;
+        this->local_rptr_sent_val = reinterpret_cast<volatile uint32_t*>(STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_OUTPUT_QUEUE * adjusted_queue_id, STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_REG_INDEX));
+        this->local_rptr_cleared_val = reinterpret_cast<volatile uint32_t*>(STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_OUTPUT_QUEUE * adjusted_queue_id + 1, STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_REG_INDEX));
+
+        this->local_rptr_sent_update = reinterpret_cast<volatile uint32_t*>(STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_OUTPUT_QUEUE * adjusted_queue_id,
+            STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_UPDATE_REG_INDEX));
+        this->local_rptr_cleared_update = reinterpret_cast<volatile uint32_t*>(STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_OUTPUT_QUEUE * adjusted_queue_id + 1,
+            STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_UPDATE_REG_INDEX));
+
+        // Reset local rptr
+        *reinterpret_cast<volatile uint32_t*>(STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_OUTPUT_QUEUE * adjusted_queue_id, STREAM_REMOTE_DEST_BUF_SIZE_REG_INDEX)) = 0;
+        *reinterpret_cast<volatile uint32_t*>(STREAM_REG_ADDR(
+            NUM_PTR_REGS_PER_OUTPUT_QUEUE * adjusted_queue_id + 1, STREAM_REMOTE_DEST_BUF_SIZE_REG_INDEX)) = 0;
 
         this->unpacketizer_page_words_sent = 0;
         this->unpacketizer_remove_header = params->unpacketizer_output_remove_header;
@@ -1032,14 +1117,24 @@ protected:
         this->input_queues = params->input_queues;
 
         this->curr_input_queue_words_in_flight = &(this->words_in_flight[0]);
-        this->prev_input_queue_words_in_flight = &(this->words_in_flight[k_MaxInputOutputQueues]);
+        this->prev_input_queue_words_in_flight = &(this->words_in_flight[MAX_SWITCH_FAN_IN]);
         this->curr_output_total_words_in_flight = 0;
         this->prev_output_total_words_in_flight = 0;
-        for (uint32_t i = 0; i < k_MaxInputOutputQueues; i++) {
+        for (uint32_t i = 0; i < MAX_SWITCH_FAN_IN; i++) {
             this->words_in_flight[i] = 0;
         }
 
         this->impl()->_init(params);
+    }
+
+    void _advance_queue_local_wptr(uint32_t num_words) { this->local_wptr += num_words; }
+
+    void _advance_queue_local_rptr_sent(uint32_t num_words) {
+        *this->local_rptr_sent_update = num_words << REMOTE_DEST_BUF_WORDS_FREE_INC;
+    }
+
+    void _advance_queue_local_rptr_cleared(uint32_t num_words) {
+        *this->local_rptr_cleared_update = num_words << REMOTE_DEST_BUF_WORDS_FREE_INC;
     }
 
     // Set the unpacketizer page words sent
@@ -1078,7 +1173,7 @@ public:
     // InputQueueIndex is the queue index
     template <size_t InputQueueIndex>
     inline uint32_t get_num_words_to_send() const {
-        static_assert(InputQueueIndex < k_MaxInputOutputQueues && InputQueueIndex < InputNetworkTypeSequence::size);
+        static_assert(InputQueueIndex < InputNetworkTypeSequence::size);
         static constexpr auto k_max_send_words = remote_max_send_words_v<R>;
 
         // Based on the InputQueueIndex, cast the variant element at that index to the correct
@@ -1134,7 +1229,7 @@ public:
     // InputQueueIndex is the queue index
     template <size_t InputQueueIndex>
     inline void register_words_in_flight(uint32_t num_words) {
-        static_assert(InputQueueIndex < k_MaxInputOutputQueues && InputQueueIndex < InputNetworkTypeSequence::size);
+        static_assert(InputQueueIndex < InputNetworkTypeSequence::size);
         auto active_input_queue = input_queues[InputQueueIndex]
                                       .template get<
                                           InputNetworkTypeSequence::values[InputQueueIndex],
@@ -1150,7 +1245,7 @@ public:
     // InputQueueIndex is the input queue index to forward
     template <size_t InputQueueIndex>
     inline uint32_t forward_data_from_input(bool& full_packet_sent, uint16_t end_of_cmd) {
-        static_assert(InputQueueIndex < k_MaxInputOutputQueues && InputQueueIndex < InputNetworkTypeSequence::size);
+        static_assert(InputQueueIndex < InputNetworkTypeSequence::size);
         uint32_t num_words = this->get_num_words_to_send<InputQueueIndex>();
         auto* active_input_queue = input_queues[InputQueueIndex]
                                        .template get<
@@ -1181,7 +1276,7 @@ public:
 
         const uint32_t src_addr = active_input_queue->get_queue_rptr_sent_addr_bytes();
         const uint32_t dest_addr = this->get_queue_wptr_addr_bytes();
-        this->remote.send_data(src_addr, dest_addr, num_words);
+        this->remote.send_data(src_addr, dest_addr, num_words, this->remote_x, this->remote_y);
 
         this->register_words_in_flight<InputQueueIndex>(num_words);
 

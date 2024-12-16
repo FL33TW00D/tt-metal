@@ -382,8 +382,11 @@ void kernel_main() {
                     if (output_finished) {
                         uint32_t return_vc = (inner_stop_mux_d_bypass >> 24) & 0xFF;
                         if ((sequence_i == return_vc) && (inner_stop_mux_d_bypass != 0)) {
-                            active_input_queue->set_final_remote_xy(inner_stop_mux_d_bypass & 0xFF, (inner_stop_mux_d_bypass >> 8) & 0xFF);
-                            active_input_queue->set_remote_queue_id((inner_stop_mux_d_bypass >> 16) & 0xFF);
+                            active_input_queue->set_remote_queue(
+                                inner_stop_mux_d_bypass & 0xFF,
+                                (inner_stop_mux_d_bypass >> 8) & 0xFF,
+                                (inner_stop_mux_d_bypass >> 16) & 0xFF
+                            );
                         }
                         active_input_queue->send_remote_finished_notification();
                     }

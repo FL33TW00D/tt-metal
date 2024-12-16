@@ -41,27 +41,25 @@ protected:
 
 public:
     // Kernel init
-    void init(
-        uint32_t queue_id,
-        uint32_t remote_queue_id,
-        uint8_t remote_x,
-        uint8_t remote_y,
-        uint32_t local_ptrs_addr,
-        uint32_t remote_ptrs_addr) {
-        this->impl()._init(queue_id, remote_queue_id, remote_x, remote_y, local_ptrs_addr, remote_ptrs_addr);
+    void init(uint32_t local_ptrs_addr, uint32_t remote_ptrs_addr) {
+        this->impl()._init(local_ptrs_addr, remote_ptrs_addr);
     }
 
     // Set stream register value
-    inline void reg_update(uint32_t reg_addr, uint32_t val) { this->impl()._reg_update(reg_addr, val); }
+    inline void reg_update(uint32_t reg_addr, uint32_t val, uint32_t remote_x, uint32_t remote_y) {
+        this->impl()._reg_update(reg_addr, val, remote_x, remote_y);
+    }
 
     // Update a pointer on the remote
-    inline void ptr_update(uint32_t src_addr, uint32_t dest_addr, PtrUpdateType update_type) {
-        this->impl()._ptr_update(src_addr, dest_addr, update_type);
+    inline void ptr_update(
+        uint32_t src_addr, uint32_t dest_addr, PtrUpdateType update_type, uint32_t remote_x, uint32_t remote_y) {
+        this->impl()._ptr_update(src_addr, dest_addr, update_type, remote_x, remote_y);
     }
 
     // Send data to the remote
-    inline void send_data(uint32_t src_addr, uint32_t dest_addr, uint32_t num_words) {
-        this->impl()._send_data(src_addr, dest_addr, num_words);
+    inline void send_data(
+        uint32_t src_addr, uint32_t dest_addr, uint32_t num_words, uint32_t remote_x, uint32_t remote_y) {
+        this->impl()._send_data(src_addr, dest_addr, num_words, remote_x, remote_y);
     }
 
     // Returns true if the controller is busy and cannot be used yet
@@ -73,35 +71,24 @@ public:
 
 // Remote updates over NOC0.
 class packet_queue_remote_noc0_impl final : public packet_queue_remote_control_t<packet_queue_remote_noc0_impl> {
-private:
-    uint8_t remote_x;
-    uint8_t remote_y;
-
 public:
-    void _init(
-        uint32_t queue_id,
-        uint32_t remote_queue_id,
-        uint8_t remote_x,
-        uint8_t remote_y,
-        uint32_t local_ptrs_addr,
-        uint32_t remote_ptrs_addr) {
-        this->remote_x = remote_x;
-        this->remote_y = remote_y;
+    void _init(uint32_t local_ptrs_addr, uint32_t remote_ptrs_addr) {}
+
+    inline void _reg_update(uint32_t reg_addr, uint32_t val, uint32_t remote_x, uint32_t remote_y) {
+        noc_inline_dw_write(get_noc_addr(remote_x, remote_y, reg_addr), val);
     }
 
-    inline void _reg_update(uint32_t reg_addr, uint32_t val) {
-        noc_inline_dw_write(get_noc_addr(this->remote_x, this->remote_y, reg_addr), val);
-    }
-
-    inline void _ptr_update(uint32_t src_addr, uint32_t dest_addr, PtrUpdateType update_type) {
+    inline void _ptr_update(
+        uint32_t src_addr, uint32_t dest_addr, PtrUpdateType update_type, uint32_t remote_x, uint32_t remote_y) {
         noc_inline_dw_write(
-            get_noc_addr(this->remote_x, this->remote_y, dest_addr), *reinterpret_cast<volatile uint32_t*>(src_addr));
+            get_noc_addr(remote_x, remote_y, dest_addr), *reinterpret_cast<volatile uint32_t*>(src_addr));
     }
 
-    inline void _send_data(uint32_t src_addr, uint32_t dest_addr, uint32_t num_words) {
+    inline void _send_data(
+        uint32_t src_addr, uint32_t dest_addr, uint32_t num_words, uint32_t remote_x, uint32_t remote_y) {
         noc_async_write(
             src_addr,
-            get_noc_addr(this->remote_x, this->remote_y, dest_addr),
+            get_noc_addr(remote_x, remote_y, dest_addr),
             num_words * 16  // bytes
         );
     }
@@ -114,42 +101,29 @@ public:
 // Remote updates over Ethernet.
 class packet_queue_remote_eth_impl final : public packet_queue_remote_control_t<packet_queue_remote_eth_impl> {
 private:
-    // struct ptr_reg_fields_t {
-    //     uint32_t ptr_value;
-    //     uint32_t dest_addr;
-    // };
-
-    // union ptr_value_reg_t {
-    //     uint32_t raw;
-    //     ptr_reg_fields_t fields;
-    // };
-
     volatile uint32_t* sent;
     volatile uint32_t* recv;
     uint32_t remote_sent_addr;
     uint32_t remote_recv_addr;
 
 public:
-    void _init(
-        uint32_t queue_id,
-        uint32_t remote_queue_id,
-        uint8_t remote_x,
-        uint8_t remote_y,
-        uint32_t ptrs_addr,
-        uint32_t remote_ptrs_addr) {
-        this->sent = reinterpret_cast<volatile uint32_t*>(packet_queue_ptr_buffer_layout_t::get_eth_sent(ptrs_addr));
-        this->recv = reinterpret_cast<volatile uint32_t*>(packet_queue_ptr_buffer_layout_t::get_eth_recv(ptrs_addr));
-        this->remote_sent_addr =
-            reinterpret_cast<uint32_t>(packet_queue_ptr_buffer_layout_t::get_eth_sent(remote_ptrs_addr));
-        this->remote_recv_addr =
-            reinterpret_cast<uint32_t>(packet_queue_ptr_buffer_layout_t::get_eth_recv(remote_ptrs_addr));
-        *this->sent = 0;
-        *this->recv = 0;
+    void _init(uint32_t ptrs_addr, uint32_t remote_ptrs_addr) {
+        // this->sent = reinterpret_cast<volatile uint32_t*>(packet_queue_ptr_buffer_layout_t::get_eth_sent(ptrs_addr));
+        // this->recv = reinterpret_cast<volatile uint32_t*>(packet_queue_ptr_buffer_layout_t::get_eth_recv(ptrs_addr));
+        // this->remote_sent_addr =
+        //     reinterpret_cast<uint32_t>(packet_queue_ptr_buffer_layout_t::get_eth_sent(remote_ptrs_addr));
+        // this->remote_recv_addr =
+        //     reinterpret_cast<uint32_t>(packet_queue_ptr_buffer_layout_t::get_eth_recv(remote_ptrs_addr));
+        // *this->sent = 0;
+        // *this->recv = 0;
     }
 
-    inline void _reg_update(uint32_t reg_addr, uint32_t val) { internal_::eth_write_remote_reg(0, reg_addr, val); }
+    inline void _reg_update(uint32_t reg_addr, uint32_t val, uint32_t remote_x, uint32_t remote_y) {
+        internal_::eth_write_remote_reg(0, reg_addr, val);
+    }
 
-    inline void _ptr_update(uint32_t src_addr, uint32_t dest_addr, PtrUpdateType update_type) {
+    inline void _ptr_update(
+        uint32_t src_addr, uint32_t dest_addr, PtrUpdateType update_type, uint32_t remote_x, uint32_t remote_y) {
         // Need to replace this with sending only 1 packet
         internal_::eth_send_packet(
             0,               // txq
@@ -166,7 +140,8 @@ public:
         );
     }
 
-    inline void _send_data(uint32_t src_addr, uint32_t dest_addr, uint32_t num_words) {
+    inline void _send_data(
+        uint32_t src_addr, uint32_t dest_addr, uint32_t num_words, uint32_t remote_x, uint32_t remote_y) {
         internal_::eth_send_packet(0, src_addr >> 4, dest_addr >> 4, num_words);
     }
 
@@ -193,19 +168,15 @@ public:
 // Dummy remote update class for testing.
 class packet_queue_remote_nop_impl final : public packet_queue_remote_control_t<packet_queue_remote_nop_impl> {
 public:
-    void _init(
-        uint32_t queue_id,
-        uint32_t remote_queue_id,
-        uint8_t remote_x,
-        uint8_t remote_y,
-        uint32_t local_ptrs_addr,
-        uint32_t remote_ptrs_addr) {}
+    void _init(uint32_t local_ptrs_addr, uint32_t remote_ptrs_addr) {}
 
-    inline void _reg_update(uint32_t reg_addr, uint32_t val) {}
+    inline void _reg_update(uint32_t reg_addr, uint32_t val, uint32_t remote_x, uint32_t remote_y) {}
 
-    inline void _ptr_update(uint32_t src_addr, uint32_t dest_addr, PtrUpdateType update_type) {}
+    inline void _ptr_update(
+        uint32_t src_addr, uint32_t dest_addr, PtrUpdateType update_type, uint32_t remote_x, uint32_t remote_y) {}
 
-    inline void _send_data(uint32_t src_addr, uint32_t dest_addr, uint32_t num_words) {}
+    inline void _send_data(
+        uint32_t src_addr, uint32_t dest_addr, uint32_t num_word, uint32_t remote_x, uint32_t remote_ys) {}
 
     inline bool _busy() const { return false; }
 
