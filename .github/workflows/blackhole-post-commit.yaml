@@ -49,14 +49,14 @@ jobs:
     uses: ./.github/workflows/umd-unit-tests.yaml
     with:
       arch: blackhole
-      runner-label: BH
+      runner-label: BH-P150
   sd-unit-tests:
     needs: build-artifact
     uses: ./.github/workflows/build-and-unit-tests.yaml
     secrets: inherit
     with:
       arch: blackhole
-      runner-label: BH
+      runner-label: BH-P150
       timeout: 30
       os: "ubuntu-22.04"
   fd-unit-tests:
@@ -65,7 +65,7 @@ jobs:
     secrets: inherit
     with:
       arch: blackhole
-      runner-label: BH
+      runner-label: BH-P150
       os: "ubuntu-22.04"
   # FD C++ Unit Tests
   cpp-unit-tests:
@@ -74,7 +74,7 @@ jobs:
     uses: ./.github/workflows/cpp-post-commit.yaml
     with:
       arch: blackhole
-      runner-label: BH
+      runner-label: BH-P150
       timeout: 60
       os: "ubuntu-22.04"
 
