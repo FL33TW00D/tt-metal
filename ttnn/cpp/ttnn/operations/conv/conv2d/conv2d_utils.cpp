@@ -775,6 +775,9 @@ void adjust_conv_op_config_for_auto_shard_if_necessary(
     // anything.
     if ((input_memory_config.has_value() && input_memory_config.value().is_sharded()) ||
         conv_config.shard_layout.has_value()) {
+        if(input_memory_config.has_value() && input_memory_config.value().is_sharded() && !conv_config.reshard_if_not_optimal) {
+            conv_config.shard_layout = input_memory_config.value().memory_layout;
+        }
         return;
     }
 
