@@ -25,7 +25,7 @@ static constexpr uint32_t MAX_HUGEPAGE_SIZE = 1 << 30;                          
 static constexpr uint32_t MAX_DEV_CHANNEL_SIZE = 1 << 28;                                      // 256 MB;
 static constexpr uint32_t DEVICES_PER_UMD_CHANNEL = MAX_HUGEPAGE_SIZE / MAX_DEV_CHANNEL_SIZE;  // 256 MB;
 
-enum class CommandQueueDeviceAddrType : uint8_t {
+enum class [[deprecated]] CommandQueueDeviceAddrType : uint8_t {
     PREFETCH_Q_RD = 0,
     // Used to notify host of how far device has gotten, doesn't need L1 alignment because it's only written locally by
     // prefetch kernel.
@@ -48,7 +48,8 @@ enum class CommandQueueHostAddrType : uint8_t {
     UNRESERVED = 4
 };
 
-struct dispatch_constants {
+struct [[deprecated(
+    "Replaced by CQDeviceConstants for constants and CQDeviceMemoryLayout for address ranges")]] dispatch_constants {
 public:
     dispatch_constants& operator=(const dispatch_constants&) = delete;
     dispatch_constants& operator=(dispatch_constants&& other) noexcept = delete;

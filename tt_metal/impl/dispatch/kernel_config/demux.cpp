@@ -29,7 +29,7 @@ void DemuxKernel::GenerateStaticConfigs() {
         FDKernel* k = downstream_kernels_[idx];
         static_config_.remote_tx_queue_id[idx] = 0;
         static_config_.remote_tx_network_type[idx] = (uint32_t)DispatchRemoteNetworkType::NOC0;
-        static_config_.output_depacketize_cb_log_page_size[idx] = dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
+        static_config_.output_depacketize_cb_log_page_size[idx] = CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
         // Only connected dispatchers need a semaphore. TODO: can initialize anyways, but this matches previous
         // implementation
         if (dynamic_cast<DispatchKernel*>(k)) {

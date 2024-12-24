@@ -8,6 +8,8 @@
 #include <mutex>
 #include <utility>
 
+#include "common/core_coord.hpp"
+#include "tt_metal/impl/dispatch/util/dispatch_settings.hpp"
 #include "hostdevcommon/common_values.hpp"
 #include "impl/dispatch/work_executor.hpp"
 #include "tt_metal/impl/allocator/basic_allocator.hpp"
@@ -264,6 +266,7 @@ class Device {
     std::unique_ptr<Allocator> initialize_allocator(size_t l1_small_size, size_t trace_region_size, tt::stl::Span<const std::uint32_t> l1_bank_remap = {});
     void initialize_build();
     void initialize_device_kernel_defines();
+    void initialize_dispatch_settings();
     void build_firmware();
     void initialize_device_bank_to_noc_tables(const HalProgrammableCoreType &core_type, CoreCoord virtual_core);
     void initialize_firmware(const HalProgrammableCoreType &core_type, CoreCoord virtual_core, launch_msg_t *launch_msg, go_msg_t* go_msg);
@@ -356,8 +359,9 @@ class Device {
 
     std::vector<std::vector<chip_id_t>> get_tunnels_from_mmio() const { return tunnels_from_mmio_; }
 
-    static constexpr MemoryAllocator allocator_scheme_ = MemoryAllocator::L1_BANKING;
+    const DispatchSettings& get_dispatch_settings(const CoreType& core_type) const;
 
+    static constexpr MemoryAllocator allocator_scheme_ = MemoryAllocator::L1_BANKING;
 private:
     void initialize_default_sub_device_state(size_t l1_small_size, size_t trace_region_size, tt::stl::Span<const std::uint32_t> l1_bank_remap);
     SubDeviceManagerId get_next_sub_device_manager_id();
@@ -417,6 +421,8 @@ private:
     program_cache::detail::ProgramCache program_cache_;
 
     uint32_t trace_buffers_size_ = 0;
+
+    DispatchSettingsContainer dispatch_settings;
 };
 
 }  // namespace v0

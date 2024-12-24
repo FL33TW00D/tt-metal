@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 #include "eth_router.hpp"
+#include "dispatch/util/cq_device_constants.hpp"
 #include "prefetch.hpp"
 #include "eth_tunneler.hpp"
 
@@ -10,6 +11,9 @@
 
 void EthRouterKernel::GenerateStaticConfigs() {
     auto& my_dispatch_constants = dispatch_constants::get(GetCoreType());
+    const auto& settings = device_->get_dispatch_settings(GetCoreType());
+    TT_ASSERT(settings.core_type_ == GetCoreType());
+
     if (as_mux_) {
         uint16_t channel =
             tt::Cluster::instance().get_assigned_channel_for_device(servicing_device_id_);  // TODO: can be mmio
@@ -17,9 +21,13 @@ void EthRouterKernel::GenerateStaticConfigs() {
         static_config_.rx_queue_start_addr_words = my_dispatch_constants.dispatch_buffer_base() >> 4;
         // TODO: why is this hard-coded NUM_CQS=1 for galaxy?
         if (tt::Cluster::instance().is_galaxy_cluster()) {
-            static_config_.rx_queue_size_words = my_dispatch_constants.mux_buffer_size(1) >> 4;
+            static_config_.rx_queue_size_words = (settings.tunneling_buffer_size_ / 1) >> 4;
+            TT_ASSERT(((settings.tunneling_buffer_size_ / 1) >> 4) == my_dispatch_constants.mux_buffer_size(1) >> 4);
         } else {
-            static_config_.rx_queue_size_words = my_dispatch_constants.mux_buffer_size(device_->num_hw_cqs()) >> 4;
+            static_config_.rx_queue_size_words = (settings.tunneling_buffer_size_ / device_->num_hw_cqs()) >> 4;
+            TT_ASSERT(
+                ((settings.tunneling_buffer_size_ / device_->num_hw_cqs()) >> 4) ==
+                my_dispatch_constants.mux_buffer_size(device_->num_hw_cqs()) >> 4);
         }
 
         static_config_.kernel_status_buf_addr_arg = 0;
@@ -33,7 +41,7 @@ void EthRouterKernel::GenerateStaticConfigs() {
 
         for (int idx = 0; idx < upstream_kernels_.size(); idx++) {
             static_config_.input_packetize[idx] = 0x1;
-            static_config_.input_packetize_log_page_size[idx] = dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
+            static_config_.input_packetize_log_page_size[idx] = CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
             static_config_.input_packetize_local_sem[idx] =
                 tt::tt_metal::CreateSemaphore(*program_, logical_core_, 0, GetCoreType());
             dependent_config_.remote_rx_queue_id[idx] = 1;
@@ -75,7 +83,7 @@ void EthRouterKernel::GenerateStaticConfigs() {
         }
 
         for (int idx = 0; idx < static_config_.vc_count.value(); idx++) {
-            static_config_.output_depacketize_log_page_size[idx] = dispatch_constants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
+            static_config_.output_depacketize_log_page_size[idx] = CQDeviceConstants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
             static_config_.output_depacketize_remove_header[idx] = 0;
         }
     }

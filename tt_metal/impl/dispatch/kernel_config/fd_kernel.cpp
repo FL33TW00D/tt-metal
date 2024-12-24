@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "fd_kernel.hpp"
+#include "common/logger.hpp"
 #include "tt_metal/host_api.hpp"
 #include "tt_metal/detail/tt_metal.hpp"
 #include "impl/debug/dprint_server.hpp"
@@ -66,6 +67,7 @@ FDKernel* FDKernel::Generate(
     uint8_t cq_id,
     noc_selection_t noc_selection,
     DispatchWorkerType type) {
+    tt::log_info(tt::LogMetal, "Generate FDKernel {}", magic_enum::enum_name(type));
     switch (type) {
         case PREFETCH_HD:
             return new PrefetchKernel(node_id, device_id, servicing_device_id, cq_id, noc_selection, true, true);

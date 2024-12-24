@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "prefetch.hpp"
 #include "dispatch.hpp"
+#include "dispatch/util/cq_device_constants.hpp"
 #include "dispatch_s.hpp"
 #include "eth_router.hpp"
 
@@ -13,6 +14,8 @@ void PrefetchKernel::GenerateStaticConfigs() {
     uint16_t channel = tt::Cluster::instance().get_assigned_channel_for_device(device_->id());
     uint8_t cq_id_ = this->cq_id_;
     auto& my_dispatch_constants = dispatch_constants::get(GetCoreType());
+    const auto& settings = device_->get_dispatch_settings(GetCoreType());
+    TT_ASSERT(settings.core_type_ == GetCoreType());
 
     if (static_config_.is_h_variant.value() && this->static_config_.is_d_variant.value()) {
         uint32_t cq_start = my_dispatch_constants.get_host_command_queue_addr(CommandQueueHostAddrType::UNRESERVED);
@@ -24,23 +27,23 @@ void PrefetchKernel::GenerateStaticConfigs() {
         logical_core_ = dispatch_core_manager::instance().prefetcher_core(device_->id(), channel, cq_id_);
 
         dependent_config_.downstream_cb_base = my_dispatch_constants.dispatch_buffer_base();
-        static_config_.downstream_cb_log_page_size = dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
-        static_config_.downstream_cb_pages = my_dispatch_constants.dispatch_buffer_pages();
-        static_config_.my_downstream_cb_sem_id = tt::tt_metal::CreateSemaphore(
-            *program_, logical_core_, my_dispatch_constants.dispatch_buffer_pages(), GetCoreType());
+        static_config_.downstream_cb_log_page_size = CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
+        static_config_.downstream_cb_pages = settings.dispatch_pages_;
+        static_config_.my_downstream_cb_sem_id =
+            tt::tt_metal::CreateSemaphore(*program_, logical_core_, settings.dispatch_pages_, GetCoreType());
 
         static_config_.pcie_base = issue_queue_start_addr;
         static_config_.pcie_size = issue_queue_size;
         static_config_.prefetch_q_base =
             my_dispatch_constants.get_device_command_queue_addr(CommandQueueDeviceAddrType::UNRESERVED);
-        static_config_.prefetch_q_size = my_dispatch_constants.prefetch_q_size();
+        static_config_.prefetch_q_size = settings.prefetch_q_size_;
         static_config_.prefetch_q_rd_ptr_addr =
             my_dispatch_constants.get_device_command_queue_addr(CommandQueueDeviceAddrType::PREFETCH_Q_RD);
         static_config_.prefetch_q_pcie_rd_ptr_addr =
             my_dispatch_constants.get_device_command_queue_addr(CommandQueueDeviceAddrType::PREFETCH_Q_PCIE_RD);
 
         static_config_.cmddat_q_base = my_dispatch_constants.cmddat_q_base();
-        static_config_.cmddat_q_size = my_dispatch_constants.cmddat_q_size();
+        static_config_.cmddat_q_size = settings.prefetch_cmddat_q_size_;
 
         static_config_.scratch_db_base = my_dispatch_constants.scratch_db_base();
         static_config_.scratch_db_size = my_dispatch_constants.scratch_db_size();
@@ -48,11 +51,11 @@ void PrefetchKernel::GenerateStaticConfigs() {
             tt::tt_metal::CreateSemaphore(*program_, logical_core_, 0, GetCoreType());
 
         // prefetch_d only
-        static_config_.cmddat_q_pages = my_dispatch_constants.prefetch_d_buffer_pages();
+        static_config_.cmddat_q_pages = settings.prefetch_d_pages_;
         static_config_.my_upstream_cb_sem_id = 0;
         dependent_config_.upstream_cb_sem_id = 0;
-        static_config_.cmddat_q_log_page_size = dispatch_constants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
-        static_config_.cmddat_q_blocks = dispatch_constants::PREFETCH_D_BUFFER_BLOCKS;
+        static_config_.cmddat_q_log_page_size = CQDeviceConstants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
+        static_config_.cmddat_q_blocks = settings.prefetch_d_blocks_;
 
         uint32_t dispatch_s_buffer_base = 0xff;
         if (device_->dispatch_s_enabled()) {
@@ -60,8 +63,8 @@ void PrefetchKernel::GenerateStaticConfigs() {
             if (GetCoreType() == CoreType::WORKER) {
                 // dispatch_s is on the same Tensix core as dispatch_d. Shared resources. Offset CB start idx.
                 dispatch_s_buffer_base =
-                    dispatch_buffer_base + (1 << dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE) *
-                                               my_dispatch_constants.dispatch_buffer_pages();
+                    dispatch_buffer_base +
+                    ((1 << CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE) * settings.dispatch_pages_);
             } else {
                 // dispatch_d and dispatch_s are on different cores. No shared resources: dispatch_s CB starts at base.
                 dispatch_s_buffer_base = dispatch_buffer_base;
@@ -70,8 +73,8 @@ void PrefetchKernel::GenerateStaticConfigs() {
         static_config_.dispatch_s_buffer_base = dispatch_s_buffer_base;
         static_config_.my_dispatch_s_cb_sem_id = tt::tt_metal::CreateSemaphore(
             *program_, logical_core_, my_dispatch_constants.dispatch_s_buffer_pages(), GetCoreType());
-        static_config_.dispatch_s_buffer_size = my_dispatch_constants.dispatch_s_buffer_size();
-        static_config_.dispatch_s_cb_log_page_size = dispatch_constants::DISPATCH_S_BUFFER_LOG_PAGE_SIZE;
+        static_config_.dispatch_s_buffer_size = settings.dispatch_s_buffer_size_;
+        static_config_.dispatch_s_cb_log_page_size = CQDeviceConstants::DISPATCH_S_BUFFER_LOG_PAGE_SIZE;
     } else if (static_config_.is_h_variant.value()) {
         // PREFETCH_H services a remote chip, and so has a different channel
         channel = tt::Cluster::instance().get_assigned_channel_for_device(servicing_device_id_);
@@ -83,40 +86,54 @@ void PrefetchKernel::GenerateStaticConfigs() {
 
         logical_core_ = dispatch_core_manager::instance().prefetcher_core(servicing_device_id_, channel, cq_id_);
 
-        static_config_.downstream_cb_log_page_size = dispatch_constants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
+        static_config_.downstream_cb_log_page_size = CQDeviceConstants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
         if (tt::Cluster::instance().is_galaxy_cluster()) {  // TODO: whys is this hard-coded for galaxy?
-            static_config_.downstream_cb_pages = my_dispatch_constants.mux_buffer_pages(1);
+            static_config_.downstream_cb_pages = settings.tunneling_buffer_pages_ / 1;
+            TT_ASSERT(my_dispatch_constants.mux_buffer_pages(1) == settings.tunneling_buffer_pages_);
         } else {
-            static_config_.downstream_cb_pages = my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs());
+            static_config_.downstream_cb_pages = settings.tunneling_buffer_pages_ / device_->num_hw_cqs();
+            TT_ASSERT(
+                my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs()) ==
+                    (settings.tunneling_buffer_pages_ / device_->num_hw_cqs()),
+                "{} vs {}. num cqs {}",
+                my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs()),
+                settings.tunneling_buffer_pages_ / device_->num_hw_cqs(),
+                device_->num_hw_cqs());
         }
 
         static_config_.pcie_base = issue_queue_start_addr;
         static_config_.pcie_size = issue_queue_size;
         static_config_.prefetch_q_base =
             my_dispatch_constants.get_device_command_queue_addr(CommandQueueDeviceAddrType::UNRESERVED);
-        static_config_.prefetch_q_size = my_dispatch_constants.prefetch_q_size();
+        static_config_.prefetch_q_size = settings.prefetch_q_size_;
+        TT_ASSERT(my_dispatch_constants.prefetch_q_size() == settings.prefetch_q_size_);
         static_config_.prefetch_q_rd_ptr_addr =
             my_dispatch_constants.get_device_command_queue_addr(CommandQueueDeviceAddrType::PREFETCH_Q_RD);
         static_config_.prefetch_q_pcie_rd_ptr_addr =
             my_dispatch_constants.get_device_command_queue_addr(CommandQueueDeviceAddrType::PREFETCH_Q_PCIE_RD);
 
         static_config_.cmddat_q_base = my_dispatch_constants.cmddat_q_base();
-        static_config_.cmddat_q_size = my_dispatch_constants.cmddat_q_size();
+        static_config_.cmddat_q_size = settings.prefetch_cmddat_q_size_;
+        TT_ASSERT(my_dispatch_constants.cmddat_q_size() == settings.prefetch_cmddat_q_size_);
 
         static_config_.scratch_db_base = my_dispatch_constants.scratch_db_base();
-        static_config_.scratch_db_size = my_dispatch_constants.scratch_db_size();
+        static_config_.scratch_db_size = settings.prefetch_scratch_db_size_;
         static_config_.downstream_sync_sem_id = 0;  // Unused for prefetch_h
+        TT_ASSERT(my_dispatch_constants.scratch_db_size() == settings.prefetch_scratch_db_size_);
 
-        static_config_.cmddat_q_pages = my_dispatch_constants.prefetch_d_buffer_pages();
+        static_config_.cmddat_q_pages = settings.prefetch_d_pages_;
+        TT_ASSERT(my_dispatch_constants.prefetch_d_buffer_pages() == settings.prefetch_d_pages_);
+
         static_config_.my_upstream_cb_sem_id =
             tt::tt_metal::CreateSemaphore(*program_, logical_core_, 0, GetCoreType());
         static_config_.my_downstream_cb_sem_id = tt::tt_metal::CreateSemaphore(
             *program_, logical_core_, static_config_.downstream_cb_pages.value(), GetCoreType());
         tt::tt_metal::CreateSemaphore(
             *program_, logical_core_, 0, GetCoreType());  // TODO: what is this third semaphore for?
-        static_config_.cmddat_q_log_page_size = dispatch_constants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
-        static_config_.cmddat_q_blocks = dispatch_constants::PREFETCH_D_BUFFER_BLOCKS;
+        static_config_.cmddat_q_log_page_size = CQDeviceConstants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
+        static_config_.cmddat_q_blocks = settings.prefetch_d_blocks_;
 
+        TT_ASSERT(settings.prefetch_d_blocks_ == dispatch_constants::PREFETCH_D_BUFFER_BLOCKS);
         // PREFETCH_H has no DISPATCH_S
         static_config_.dispatch_s_buffer_base = 0;
         static_config_.my_dispatch_s_cb_sem_id = 0;
@@ -126,8 +143,9 @@ void PrefetchKernel::GenerateStaticConfigs() {
         logical_core_ = dispatch_core_manager::instance().prefetcher_d_core(device_->id(), channel, cq_id_);
 
         dependent_config_.downstream_cb_base = my_dispatch_constants.dispatch_buffer_base();
-        static_config_.downstream_cb_log_page_size = dispatch_constants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
-        static_config_.downstream_cb_pages = my_dispatch_constants.dispatch_buffer_pages();
+        static_config_.downstream_cb_log_page_size = CQDeviceConstants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
+        static_config_.downstream_cb_pages = settings.dispatch_pages_;
+        TT_ASSERT(my_dispatch_constants.dispatch_buffer_pages() == settings.dispatch_pages_);
 
         static_config_.pcie_base = 0;
         static_config_.pcie_size = 0;
@@ -139,26 +157,31 @@ void PrefetchKernel::GenerateStaticConfigs() {
             my_dispatch_constants.get_device_command_queue_addr(CommandQueueDeviceAddrType::PREFETCH_Q_PCIE_RD);
 
         static_config_.cmddat_q_base = my_dispatch_constants.dispatch_buffer_base();
-        static_config_.cmddat_q_size = my_dispatch_constants.prefetch_d_buffer_size();
+        static_config_.cmddat_q_size = settings.prefetch_d_buffer_size_;
+        TT_ASSERT(my_dispatch_constants.prefetch_d_buffer_size() == settings.prefetch_d_buffer_size_);
 
         uint32_t pcie_alignment = hal.get_alignment(HalMemType::HOST);
-        static_config_.scratch_db_base = (my_dispatch_constants.dispatch_buffer_base() +
-                                          my_dispatch_constants.prefetch_d_buffer_size() + pcie_alignment - 1) &
-                                         (~(pcie_alignment - 1));
-        static_config_.scratch_db_size = my_dispatch_constants.scratch_db_size();
+        static_config_.scratch_db_base =
+            (my_dispatch_constants.dispatch_buffer_base() + settings.prefetch_d_buffer_size_ + pcie_alignment - 1) &
+            (~(pcie_alignment - 1));
+        static_config_.scratch_db_size = settings.prefetch_scratch_db_size_;
+        TT_ASSERT(my_dispatch_constants.scratch_db_size() == settings.prefetch_scratch_db_size_);
+
         static_config_.downstream_sync_sem_id =
             tt::tt_metal::CreateSemaphore(*program_, logical_core_, 0, GetCoreType());
 
-        static_config_.cmddat_q_pages = my_dispatch_constants.prefetch_d_buffer_pages();
+        static_config_.cmddat_q_pages = settings.prefetch_d_pages_;
+        TT_ASSERT(my_dispatch_constants.prefetch_d_buffer_pages() == settings.prefetch_d_pages_);
+
         static_config_.my_upstream_cb_sem_id =
             tt::tt_metal::CreateSemaphore(*program_, logical_core_, 0, GetCoreType());
         static_config_.my_downstream_cb_sem_id = tt::tt_metal::CreateSemaphore(
             *program_,
             logical_core_,
-            my_dispatch_constants.dispatch_buffer_pages(),
+            settings.dispatch_pages_,
             GetCoreType());  // TODO: this is out of order to match previous implementation
-        static_config_.cmddat_q_log_page_size = dispatch_constants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
-        static_config_.cmddat_q_blocks = dispatch_constants::PREFETCH_D_BUFFER_BLOCKS;
+        static_config_.cmddat_q_log_page_size = CQDeviceConstants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
+        static_config_.cmddat_q_blocks = settings.prefetch_d_blocks_;
 
         uint32_t dispatch_s_buffer_base = 0xff;
         if (device_->dispatch_s_enabled() || true) {  // Just to make it match previous implementation
@@ -166,20 +189,22 @@ void PrefetchKernel::GenerateStaticConfigs() {
             if (GetCoreType() == CoreType::WORKER) {
                 // dispatch_s is on the same Tensix core as dispatch_d. Shared resources. Offset CB start idx.
                 dispatch_s_buffer_base =
-                    dispatch_buffer_base + (1 << dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE) *
-                                               my_dispatch_constants.dispatch_buffer_pages();
+                    dispatch_buffer_base +
+                    (1 << CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE) * settings.dispatch_pages_;
             } else {
                 // dispatch_d and dispatch_s are on different cores. No shared resources: dispatch_s CB starts at base.
                 dispatch_s_buffer_base = dispatch_buffer_base;
             }
         }
         static_config_.dispatch_s_buffer_base = dispatch_s_buffer_base;
-        static_config_.my_dispatch_s_cb_sem_id = tt::tt_metal::CreateSemaphore(
-            *program_, logical_core_, my_dispatch_constants.dispatch_s_buffer_pages(), GetCoreType());
-        static_config_.dispatch_s_buffer_size = my_dispatch_constants.dispatch_s_buffer_size();
+        static_config_.my_dispatch_s_cb_sem_id =
+            tt::tt_metal::CreateSemaphore(*program_, logical_core_, settings.dispatch_s_buffer_pages_, GetCoreType());
+        TT_ASSERT(settings.dispatch_s_buffer_pages_ == my_dispatch_constants.dispatch_s_buffer_pages());
+        static_config_.dispatch_s_buffer_size = settings.dispatch_s_buffer_size_;
+        TT_ASSERT(my_dispatch_constants.dispatch_s_buffer_size() == settings.dispatch_s_buffer_size_);
         static_config_.dispatch_s_cb_log_page_size = device_->dispatch_s_enabled()
-                                                         ? dispatch_constants::DISPATCH_S_BUFFER_LOG_PAGE_SIZE
-                                                         : dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
+                                                         ? CQDeviceConstants::DISPATCH_S_BUFFER_LOG_PAGE_SIZE
+                                                         : CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
     } else {
         TT_FATAL(false, "PrefetchKernel must be one of (or both) H and D variants");
     }

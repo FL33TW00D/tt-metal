@@ -13,11 +13,12 @@ void MuxKernel::GenerateStaticConfigs() {
     uint16_t channel = tt::Cluster::instance().get_assigned_channel_for_device(device_->id());
     logical_core_ = dispatch_core_manager::instance().mux_d_core(device_->id(), channel, this->cq_id_);
     auto& my_dispatch_constants = dispatch_constants::get(GetCoreType());
+    const auto& settings = device_->get_dispatch_settings(GetCoreType());
+    TT_ASSERT(settings.core_type_ == GetCoreType());
+
     static_config_.reserved = 0;
     static_config_.rx_queue_start_addr_words = my_dispatch_constants.dispatch_buffer_base() >> 4;
-    static_config_.rx_queue_size_words = ((1 << dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE) *
-                                          my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs())) >>
-                                         4;
+    static_config_.rx_queue_size_words = (settings.tunneling_buffer_size_ / device_->num_hw_cqs()) >> 4;
     static_config_.mux_fan_in = upstream_kernels_.size();
     for (int idx = 0; idx < upstream_kernels_.size(); idx++) {
         static_config_.remote_rx_network_type[idx] = DispatchRemoteNetworkType::NOC0;

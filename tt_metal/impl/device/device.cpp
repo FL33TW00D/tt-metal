@@ -6,6 +6,7 @@
 #include <thread>
 #include "tt_metal/device.hpp"
 #include "common/core_assignment.hpp"
+#include "dispatch/util/dispatch_settings.hpp"
 #include "tt_metal/host_api.hpp"
 #include "tt_metal/impl/device/device.hpp"
 #include "tt_metal/impl/trace/trace.hpp"
@@ -2989,7 +2990,6 @@ void Device::init_command_queue_host() {
 }
 
 void Device::init_command_queue_device() {
-
     if (llrt::RunTimeOptions::get_instance().get_skip_loading_fw()) {
         detail::EnablePersistentKernelCache();
         if (llrt::RunTimeOptions::get_instance().get_use_new_fd_init()) {
@@ -3102,6 +3102,7 @@ bool Device::initialize(const uint8_t num_hw_cqs, size_t l1_small_size, size_t t
     this->initialize_default_sub_device_state(l1_small_size, trace_region_size, l1_bank_remap);
     this->initialize_build();
     this->generate_device_bank_to_noc_tables();
+    this->initialize_dispatch_settings();
 
     // For minimal setup, don't initialize FW, watcher, dprint. They won't work if we're attaching to a hung chip.
     if (minimal)
@@ -3112,6 +3113,35 @@ bool Device::initialize(const uint8_t num_hw_cqs, size_t l1_small_size, size_t t
     this->initialized_ = true;
 
     return true;
+}
+
+void Device::initialize_dispatch_settings() {
+    TT_ASSERT(this->num_hw_cqs() > 0, "num_hw_cqs should not be zero");
+    // TODO Read from a YAML file
+    {
+        auto key = DispatchSettingsContainerKey{.core_type = CoreType::WORKER, .num_hw_cqs = this->num_hw_cqs()};
+        this->dispatch_settings[key] = DispatchSettings::defaults(
+            CoreType::WORKER,
+            tt::Cluster::instance(),
+            hal,
+            this->num_hw_cqs()
+        );
+    }
+
+    {
+        auto key = DispatchSettingsContainerKey{.core_type = CoreType::ETH, .num_hw_cqs = this->num_hw_cqs()};
+        this->dispatch_settings[key] = DispatchSettings::defaults(
+            CoreType::ETH,
+            tt::Cluster::instance(),
+            hal,
+            this->num_hw_cqs()
+        );
+    }
+}
+
+const DispatchSettings& Device::get_dispatch_settings(const CoreType& core_type) const {
+    auto key = DispatchSettingsContainerKey{.core_type = core_type, .num_hw_cqs = this->num_hw_cqs()};
+    return this->dispatch_settings.at(key);
 }
 
 bool Device::close() {

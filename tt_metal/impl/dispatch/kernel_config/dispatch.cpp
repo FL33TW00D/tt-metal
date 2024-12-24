@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 #include "dispatch.hpp"
+#include "dispatch/command_queue_interface.hpp"
+#include "dispatch/util/cq_device_constants.hpp"
 #include "prefetch.hpp"
 #include "dispatch_s.hpp"
 #include "demux.hpp"
@@ -14,6 +16,8 @@ void DispatchKernel::GenerateStaticConfigs() {
     uint16_t channel = tt::Cluster::instance().get_assigned_channel_for_device(device_->id());
     uint8_t cq_id_ = this->cq_id_;
     auto& my_dispatch_constants = dispatch_constants::get(GetCoreType());
+    const auto& settings = device_->get_dispatch_settings(GetCoreType());
+    TT_ASSERT(settings.core_type_ == GetCoreType());
 
     if (static_config_.is_h_variant.value() && this->static_config_.is_d_variant.value()) {
         uint32_t cq_start = my_dispatch_constants.get_host_command_queue_addr(CommandQueueHostAddrType::UNRESERVED);
@@ -26,12 +30,12 @@ void DispatchKernel::GenerateStaticConfigs() {
 
         logical_core_ = dispatch_core_manager::instance().dispatcher_core(device_->id(), channel, cq_id_);
         static_config_.dispatch_cb_base = my_dispatch_constants.dispatch_buffer_base();
-        static_config_.dispatch_cb_log_page_size = dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
-        static_config_.dispatch_cb_pages = my_dispatch_constants.dispatch_buffer_pages();
+        static_config_.dispatch_cb_log_page_size = CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
+        static_config_.dispatch_cb_pages = settings.dispatch_pages_;
         static_config_.my_dispatch_cb_sem_id =
             tt::tt_metal::CreateSemaphore(*program_, logical_core_, 0, GetCoreType());
 
-        static_config_.dispatch_cb_blocks = dispatch_constants::DISPATCH_BUFFER_SIZE_BLOCKS;
+        static_config_.dispatch_cb_blocks = settings.dispatch_pages_per_block_;
         static_config_.command_queue_base_addr = command_queue_start_addr;
         static_config_.completion_queue_base_addr = completion_queue_start_addr;
         static_config_.completion_queue_size = completion_queue_size;
@@ -48,8 +52,8 @@ void DispatchKernel::GenerateStaticConfigs() {
             device_->compute_with_storage_grid_size().x * device_->compute_with_storage_grid_size().y;
         static_config_.dispatch_s_sync_sem_base_addr =
             my_dispatch_constants.get_device_command_queue_addr(CommandQueueDeviceAddrType::DISPATCH_S_SYNC_SEM);
-        static_config_.max_num_worker_sems = dispatch_constants::DISPATCH_MESSAGE_ENTRIES;
-        static_config_.max_num_go_signal_noc_data_entries = dispatch_constants::DISPATCH_GO_SIGNAL_NOC_DATA_ENTRIES;
+        static_config_.max_num_worker_sems = CQDeviceConstants::DISPATCH_MESSAGE_ENTRIES;
+        static_config_.max_num_go_signal_noc_data_entries = CQDeviceConstants::DISPATCH_GO_SIGNAL_NOC_DATA_ENTRIES;
         static_config_.mcast_go_signal_addr =
             hal.get_dev_addr(HalProgrammableCoreType::TENSIX, HalL1MemAddrType::GO_MSG);
         static_config_.unicast_go_signal_addr =
@@ -77,15 +81,20 @@ void DispatchKernel::GenerateStaticConfigs() {
 
         logical_core_ = dispatch_core_manager::instance().dispatcher_core(servicing_device_id_, channel, cq_id_);
         static_config_.dispatch_cb_base = my_dispatch_constants.dispatch_buffer_base();
-        static_config_.dispatch_cb_log_page_size = dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
-        static_config_.dispatch_cb_pages = my_dispatch_constants.dispatch_buffer_pages();
+        static_config_.dispatch_cb_log_page_size = CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE;
+        static_config_.dispatch_cb_pages = settings.dispatch_pages_;
         static_config_.my_dispatch_cb_sem_id =
             tt::tt_metal::CreateSemaphore(*program_, logical_core_, 0, GetCoreType());
 
-        static_config_.dispatch_cb_blocks = dispatch_constants::DISPATCH_BUFFER_SIZE_BLOCKS;
+        static_config_.dispatch_cb_blocks = settings.dispatch_pages_per_block_;
         static_config_.command_queue_base_addr = command_queue_start_addr;
         static_config_.completion_queue_base_addr = completion_queue_start_addr;
         static_config_.completion_queue_size = completion_queue_size;
+
+        TT_ASSERT(settings.dispatch_pages_per_block_ == dispatch_constants::DISPATCH_BUFFER_SIZE_BLOCKS);
+        TT_ASSERT(settings.dispatch_pages_ == my_dispatch_constants.dispatch_buffer_pages());
+        TT_ASSERT(
+            CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE == dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE);
 
         static_config_.my_downstream_cb_sem_id = 0;  // Unused
 
@@ -93,9 +102,13 @@ void DispatchKernel::GenerateStaticConfigs() {
         static_config_.split_prefetch = true;
         // TODO: why is this hard-coded to 1 CQ on Galaxy?
         if (tt::Cluster::instance().is_galaxy_cluster()) {
-            static_config_.prefetch_h_max_credits = my_dispatch_constants.mux_buffer_pages(1);
+            static_config_.prefetch_h_max_credits = settings.tunneling_buffer_pages_ / 1;
+            TT_ASSERT(settings.tunneling_buffer_pages_ / 1 == my_dispatch_constants.mux_buffer_pages(1));
         } else {
-            static_config_.prefetch_h_max_credits = my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs());
+            static_config_.prefetch_h_max_credits = settings.tunneling_buffer_pages_ / device_->num_hw_cqs();
+            TT_ASSERT(
+                settings.tunneling_buffer_pages_ / device_->num_hw_cqs() ==
+                my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs()));
         }
 
         static_config_.packed_write_max_unicast_sub_cmds =
@@ -124,27 +137,35 @@ void DispatchKernel::GenerateStaticConfigs() {
 
         logical_core_ = dispatch_core_manager::instance().dispatcher_d_core(device_->id(), channel, cq_id_);
         static_config_.dispatch_cb_base = my_dispatch_constants.dispatch_buffer_base();
-        static_config_.dispatch_cb_log_page_size = dispatch_constants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
-        static_config_.dispatch_cb_pages = my_dispatch_constants.dispatch_buffer_pages();
+        static_config_.dispatch_cb_log_page_size = CQDeviceConstants::PREFETCH_D_BUFFER_LOG_PAGE_SIZE;
+        static_config_.dispatch_cb_pages = settings.dispatch_pages_;
         static_config_.my_dispatch_cb_sem_id =
             tt::tt_metal::CreateSemaphore(*program_, logical_core_, 0, GetCoreType());
 
-        static_config_.dispatch_cb_blocks = dispatch_constants::DISPATCH_BUFFER_SIZE_BLOCKS;
+        TT_ASSERT(settings.dispatch_pages_ == my_dispatch_constants.dispatch_buffer_pages());
+
+        static_config_.dispatch_cb_blocks = settings.dispatch_pages_per_block_;
+        ;
         static_config_.command_queue_base_addr = 0;  // These are unused for DISPATCH_D
         static_config_.completion_queue_base_addr = 0;
         static_config_.completion_queue_size = 0;
 
+        // Initial value
+        const auto pages_available = settings.tunneling_buffer_pages_ / device_->num_hw_cqs();
+
         static_config_.my_downstream_cb_sem_id = tt::tt_metal::CreateSemaphore(
             *program_,
             logical_core_,
-            my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs()),
+            pages_available,
             GetCoreType());  // Apparently unused
 
         static_config_.split_dispatch_page_preamble_size = sizeof(dispatch_packet_header_t);
         static_config_.split_prefetch = true;
         dependent_config_.prefetch_h_noc_xy = 0;
         dependent_config_.prefetch_h_local_downstream_sem_addr = 1;
-        static_config_.prefetch_h_max_credits = my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs());
+        static_config_.prefetch_h_max_credits = pages_available;
+
+        TT_ASSERT(pages_available == my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs()));
 
         // To match with previous implementation, need to use grid size from mmio device. TODO: that doesn't seem
         // correct though?
@@ -155,8 +176,8 @@ void DispatchKernel::GenerateStaticConfigs() {
         static_config_.packed_write_max_unicast_sub_cmds = remote_grid_size.x * remote_grid_size.y;
         static_config_.dispatch_s_sync_sem_base_addr =
             my_dispatch_constants.get_device_command_queue_addr(CommandQueueDeviceAddrType::DISPATCH_S_SYNC_SEM);
-        static_config_.max_num_worker_sems = dispatch_constants::DISPATCH_MESSAGE_ENTRIES;
-        static_config_.max_num_go_signal_noc_data_entries = dispatch_constants::DISPATCH_GO_SIGNAL_NOC_DATA_ENTRIES;
+        static_config_.max_num_worker_sems = CQDeviceConstants::DISPATCH_MESSAGE_ENTRIES;
+        static_config_.max_num_go_signal_noc_data_entries = CQDeviceConstants::DISPATCH_GO_SIGNAL_NOC_DATA_ENTRIES;
         static_config_.mcast_go_signal_addr =
             hal.get_dev_addr(HalProgrammableCoreType::TENSIX, HalL1MemAddrType::GO_MSG);
         static_config_.unicast_go_signal_addr =
@@ -178,6 +199,8 @@ void DispatchKernel::GenerateStaticConfigs() {
 
 void DispatchKernel::GenerateDependentConfigs() {
     auto& my_dispatch_constants = dispatch_constants::get(GetCoreType());
+    const auto& settings = device_->get_dispatch_settings(GetCoreType());
+
     if (static_config_.is_h_variant.value() && this->static_config_.is_d_variant.value()) {
         // Upstream
         TT_ASSERT(upstream_kernels_.size() == 1);
@@ -200,9 +223,12 @@ void DispatchKernel::GenerateDependentConfigs() {
         }
         dependent_config_.downstream_logical_core = UNUSED_LOGICAL_CORE;
         dependent_config_.downstream_cb_base = my_dispatch_constants.dispatch_buffer_base();
-        dependent_config_.downstream_cb_size =
-            (1 << dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE) * my_dispatch_constants.dispatch_buffer_pages();
+        dependent_config_.downstream_cb_size = settings.dispatch_size_;
         dependent_config_.downstream_cb_sem_id = UNUSED_SEM_ID;
+
+        TT_ASSERT(
+            ((1 << dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE) *
+             my_dispatch_constants.dispatch_buffer_pages()) == settings.dispatch_size_);
     } else if (static_config_.is_h_variant.value()) {
         // Upstream, expect DEMUX
         TT_ASSERT(upstream_kernels_.size() == 1);
@@ -227,9 +253,12 @@ void DispatchKernel::GenerateDependentConfigs() {
         dependent_config_.prefetch_h_local_downstream_sem_addr =
             prefetch_h_kernel->GetStaticConfig().my_downstream_cb_sem_id;
         dependent_config_.downstream_cb_base = my_dispatch_constants.dispatch_buffer_base();  // Unused
-        dependent_config_.downstream_cb_size = (1 << dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE) *
-                                               my_dispatch_constants.dispatch_buffer_pages();  // Unused
-        dependent_config_.downstream_cb_sem_id = 0;                                            // Unused
+        dependent_config_.downstream_cb_size = settings.dispatch_size_;                       // Unused
+        dependent_config_.downstream_cb_sem_id = 0;                                           // Unused
+
+        TT_ASSERT(
+            ((1 << dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE) *
+             my_dispatch_constants.dispatch_buffer_pages()) == settings.dispatch_size_);
     } else if (static_config_.is_d_variant.value()) {
         // Upstream, expect a PREFETCH_D
         TT_ASSERT(upstream_kernels_.size() == 1);
@@ -258,11 +287,15 @@ void DispatchKernel::GenerateDependentConfigs() {
         dependent_config_.downstream_logical_core = mux_kernel->GetLogicalCore();
         // Some configs depend on which port this kernel connects to on the downstream kernel
         int dispatch_d_idx = mux_kernel->GetUpstreamPort(this);  // Need the port that this connects to downstream
-        dependent_config_.downstream_cb_size = (1 << dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE) *
-                                               my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs());
+        dependent_config_.downstream_cb_size = (1 << CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE) *
+                                               (settings.tunneling_buffer_pages_ / device_->num_hw_cqs());
         dependent_config_.downstream_cb_base = my_dispatch_constants.dispatch_buffer_base() +
                                                dependent_config_.downstream_cb_size.value() * dispatch_d_idx;
         dependent_config_.downstream_cb_sem_id = dispatch_d_idx;
+
+        TT_ASSERT(
+            (settings.tunneling_buffer_pages_ / device_->num_hw_cqs()) ==
+            my_dispatch_constants.mux_buffer_pages(device_->num_hw_cqs()));
     } else {
         TT_FATAL(false, "DispatchKernel must be one of (or both) H and D variants");
     }

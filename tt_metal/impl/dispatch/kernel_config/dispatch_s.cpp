@@ -12,14 +12,16 @@ void DispatchSKernel::GenerateStaticConfigs() {
     uint16_t channel = tt::Cluster::instance().get_assigned_channel_for_device(device_->id());
     uint8_t cq_id_ = this->cq_id_;
     auto& my_dispatch_constants = dispatch_constants::get(GetCoreType());
+    const auto& settings = device_->get_dispatch_settings(GetCoreType());
+    TT_ASSERT(settings.core_type_ == GetCoreType());
 
     uint32_t dispatch_s_buffer_base = 0xff;
     if (device_->dispatch_s_enabled()) {
         uint32_t dispatch_buffer_base = my_dispatch_constants.dispatch_buffer_base();
         if (GetCoreType() == CoreType::WORKER) {
             // dispatch_s is on the same Tensix core as dispatch_d. Shared resources. Offset CB start idx.
-            dispatch_s_buffer_base = dispatch_buffer_base + (1 << dispatch_constants::DISPATCH_BUFFER_LOG_PAGE_SIZE) *
-                                                                my_dispatch_constants.dispatch_buffer_pages();
+            dispatch_s_buffer_base = dispatch_buffer_base +
+                                     (1 << CQDeviceConstants::DISPATCH_BUFFER_LOG_PAGE_SIZE) * settings.dispatch_pages_;
         } else {
             // dispatch_d and dispatch_s are on different cores. No shared resources: dispatch_s CB starts at base.
             dispatch_s_buffer_base = dispatch_buffer_base;
@@ -27,8 +29,9 @@ void DispatchSKernel::GenerateStaticConfigs() {
     }
     logical_core_ = dispatch_core_manager::instance().dispatcher_s_core(device_->id(), channel, cq_id_);
     static_config_.cb_base = dispatch_s_buffer_base;
-    static_config_.cb_log_page_size = dispatch_constants::DISPATCH_S_BUFFER_LOG_PAGE_SIZE;
-    static_config_.cb_size = my_dispatch_constants.dispatch_s_buffer_size();
+    static_config_.cb_log_page_size = CQDeviceConstants::DISPATCH_S_BUFFER_LOG_PAGE_SIZE;
+    static_config_.cb_size = settings.dispatch_s_buffer_size_;
+
     // used by dispatch_s to sync with prefetch
     static_config_.my_dispatch_cb_sem_id = tt::tt_metal::CreateSemaphore(*program_, logical_core_, 0, GetCoreType());
     static_config_.dispatch_s_sync_sem_base_addr =
@@ -43,8 +46,8 @@ void DispatchSKernel::GenerateStaticConfigs() {
     static_config_.distributed_dispatcher = (GetCoreType() == CoreType::ETH);
     static_config_.worker_sem_base_addr =
         my_dispatch_constants.get_device_command_queue_addr(CommandQueueDeviceAddrType::DISPATCH_MESSAGE);
-    static_config_.max_num_worker_sems = dispatch_constants::DISPATCH_MESSAGE_ENTRIES;
-    static_config_.max_num_go_signal_noc_data_entries = dispatch_constants::DISPATCH_GO_SIGNAL_NOC_DATA_ENTRIES;
+    static_config_.max_num_worker_sems = CQDeviceConstants::DISPATCH_MESSAGE_ENTRIES;
+    static_config_.max_num_go_signal_noc_data_entries = CQDeviceConstants::DISPATCH_GO_SIGNAL_NOC_DATA_ENTRIES;
 }
 
 void DispatchSKernel::GenerateDependentConfigs() {
