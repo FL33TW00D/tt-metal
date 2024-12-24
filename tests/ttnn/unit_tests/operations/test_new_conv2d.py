@@ -462,7 +462,8 @@ def run_conv_l1(
         input_channels_alignment=(
             16 if use_shallow_conv_variant or (input_channels == 16 and input_height == 115) else 32
         ),
-        deallocate_activation=deallocate_activation,
+        deallocate_activation=True,
+        reallocate_halo_output=True,
         enable_act_double_buffer=False,
         enable_split_reader=False,
         enable_subblock_padding=False,
@@ -608,7 +609,7 @@ def run_conv_with_split_l1(
         dtype=activations_dtype,
         weights_dtype=weights_dtype,
         shard_layout=shard_layout if use_1d_systolic_array else ttnn.TensorMemoryLayout.BLOCK_SHARDED,
-        # input_channels_alignment=(16 if use_shallow_conv_variant else 32),
+        input_channels_alignment=(16 if use_shallow_conv_variant else 32),
     )
     compute_config = ttnn.init_device_compute_kernel_config(
         device.arch(),
