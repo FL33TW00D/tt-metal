@@ -126,7 +126,9 @@ on:
           - eltwise.unary.hardshrink.hardshrink_sharded
           - eltwise.unary.softmax.softmax
           - eltwise.unary.identity.identity
+          - eltwise.unary.identity.identity_output
           - eltwise.unary.neg.neg
+          - eltwise.unary.neg.neg_output
           - eltwise.unary.sinh.sinh
           - eltwise.unary.asinh.asinh
           - eltwise.unary.cosh.cosh
