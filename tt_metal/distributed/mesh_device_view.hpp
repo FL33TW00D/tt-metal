@@ -17,17 +17,17 @@ namespace tt::tt_metal::distributed {
 
 // Forward declaration of MeshDevice
 class MeshDevice;
+
 struct MeshShape {
     size_t num_rows = 0;
     size_t num_cols = 0;
 };
 
 struct Coordinate {
-    size_t row;
-    size_t col;
+    size_t row = 0;
+    size_t col = 0;
     auto operator<=>(const Coordinate&) const = default;
 
-    // Add support for structured bindings
     template <size_t I>
     decltype(auto) get() const {
         if constexpr (I == 0) {
@@ -65,17 +65,15 @@ enum class MeshType { RowMajor, Ring, Line };
 
 class MeshDeviceView {
 public:
-    using device_pointer = Device*;
-    using const_device_pointer = const Device*;
-    using DeviceView = std::vector<device_pointer>;
-    using DeviceViews = std::vector<std::vector<device_pointer>>;
+    using DeviceView = std::vector<Device*>;
+    using DeviceViews = std::vector<std::vector<Device*>>;
     using CoordinateMapper = std::function<std::optional<Coordinate>(int device_id)>;
 
     MeshDeviceView(const MeshDevice& mesh);
     MeshDeviceView(const MeshDevice& mesh, Coordinate top_left, Coordinate bottom_right);
-    MeshDeviceView(std::vector<device_pointer> devices, const CoordinateMapper& mapper);
+    MeshDeviceView(DeviceView devices, const CoordinateMapper& mapper);
 
-    [[nodiscard]] device_pointer get_device(size_t row, size_t col) const;
+    [[nodiscard]] Device* get_device(size_t row, size_t col) const;
 
     // Get devices spanning the rectangular region defined by the top-left and bottom-right coordinates
     // devices are returned in row-major order with start/end coordinates inclusive
@@ -93,7 +91,7 @@ public:
     [[nodiscard]] size_t size() const noexcept;
     [[nodiscard]] MeshShape shape() const noexcept;
     [[nodiscard]] bool contains(const Coordinate& coord) const noexcept;
-    [[nodiscard]] const_device_pointer at(const Coordinate& coord) const noexcept;
+    [[nodiscard]] const Device* at(const Coordinate& coord) const noexcept;
 
     bool operator==(const MeshDeviceView& other) const;
 
@@ -114,22 +112,23 @@ public:
         size_t length, const Coordinate& offset, size_t num_rows, size_t num_cols);
     [[nodiscard]] std::vector<Coordinate> get_ring_coordinates(
         const MeshShape& ring_shape, const Coordinate& offset, size_t num_rows, size_t num_cols) const;
-    [[nodiscard]] std::vector<device_pointer> get_ring_devices() const;
-    [[nodiscard]] std::vector<device_pointer> get_line_devices() const;
+    [[nodiscard]] DeviceView get_ring_devices() const;
+    [[nodiscard]] DeviceView get_line_devices() const;
 
 private:
-    std::vector<device_pointer> devices_;
+    DeviceView devices_;
     std::unordered_map<chip_id_t, Coordinate> device_coordinates_;
     Coordinate top_left_;
     Coordinate bottom_right_;
 
-    void initialize_from_devices(const std::vector<device_pointer>& devices, const CoordinateMapper& mapper);
+    void initialize_from_devices(const DeviceView& devices, const CoordinateMapper& mapper);
     void validate_coordinates() const;
 };
 
 // Helper function to create a MeshDeviceView
-inline MeshDeviceView make_mesh_device_view(std::vector<Device*> devices, MeshDeviceView::CoordinateMapper mapper) {
-    return MeshDeviceView(std::move(devices), std::move(mapper));
+inline MeshDeviceView make_mesh_device_view(
+    const std::vector<Device*>& devices, const MeshDeviceView::CoordinateMapper& mapper) {
+    return MeshDeviceView(devices, mapper);
 }
 
 }  // namespace tt::tt_metal::distributed

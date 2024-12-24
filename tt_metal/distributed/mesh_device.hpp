@@ -80,14 +80,14 @@ public:
 
 class MeshDevice : public std::enable_shared_from_this<MeshDevice> {
 private:
-    MeshDeviceID mesh_id;
-    MeshShape mesh_device_shape;
-    MeshType type;
-    std::unique_ptr<MeshDeviceView> view;
-    std::map<chip_id_t, Device*> opened_devices;
-    std::vector<Device*> devices;
-    std::vector<std::shared_ptr<MeshDevice>> submeshes;  // Parent owns submeshes and responsible fortheir destruction
-    std::weak_ptr<MeshDevice> parent_mesh;               // Submesh created with reference to parent mesh
+    MeshDeviceID mesh_id_;
+    MeshShape mesh_device_shape_;
+    MeshType type_;
+    std::unique_ptr<MeshDeviceView> view_;
+    std::map<chip_id_t, Device*> opened_devices_;
+    std::vector<Device*> devices_;
+    std::vector<std::shared_ptr<MeshDevice>> submeshes_;  // Parent owns submeshes and responsible fortheir destruction
+    std::weak_ptr<MeshDevice> parent_mesh_;               // Submesh created with reference to parent mesh
 
     void initialize(
         size_t l1_small_size,
@@ -186,7 +186,8 @@ public:
     size_t num_program_cache_entries() const;
 
     int num_dram_channels() const;
-    allocator::Statistics get_memory_allocation_statistics(const BufferType &buffer_type, SubDeviceId sub_device_id = SubDeviceId{0}) const;
+    allocator::Statistics get_memory_allocation_statistics(
+        const BufferType& buffer_type, SubDeviceId sub_device_id = SubDeviceId{0}) const;
 };
 
 std::ostream& operator<<(std::ostream& os, const MeshDevice& mesh_device);
