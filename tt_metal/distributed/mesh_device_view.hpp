@@ -12,37 +12,12 @@
 #include <functional>
 
 #include "tt_metal/impl/device/device.hpp"
+#include "tt_metal/distributed/mesh_shape.hpp"
 
 namespace tt::tt_metal::distributed {
 
 // Forward declaration of MeshDevice
 class MeshDevice;
-
-struct MeshShape {
-    size_t num_rows = 0;
-    size_t num_cols = 0;
-};
-
-struct Coordinate {
-    size_t row = 0;
-    size_t col = 0;
-    auto operator<=>(const Coordinate&) const = default;
-
-    template <size_t I>
-    decltype(auto) get() const {
-        if constexpr (I == 0) {
-            return row;
-        } else if constexpr (I == 1) {
-            return col;
-        } else {
-            static_assert(I < 2, "Index out of bounds for Coordinate");
-        }
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const Coordinate& coord) {
-        return os << "Coord(" << coord.row << ", " << coord.col << ")";
-    }
-};
 
 /**
  * @brief The MeshDeviceView class provides a view of a specific sub-region within the MeshDevice.

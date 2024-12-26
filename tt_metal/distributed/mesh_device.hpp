@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "tt_metal/distributed/mesh_device_view.hpp"
+#include "tt_metal/distributed/mesh_shape.hpp"
 #include "tt_metal/impl/device/device.hpp"
 #include "tt_metal/impl/sub_device/sub_device_types.hpp"
 #include "tt_metal/tt_stl/span.hpp"
@@ -18,12 +19,8 @@ namespace tt::tt_metal::distributed {
 
 using DeviceIds = std::vector<int>;
 using MeshDeviceID = size_t;
-struct MeshOffset {
-    size_t row = 0;
-    size_t col = 0;
-};
-class MeshDeviceView;
 
+class MeshDeviceView;
 struct MeshSubDeviceManagerId;
 
 struct MeshDeviceConfig {

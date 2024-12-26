@@ -15,6 +15,7 @@
 #include "tt_metal/host_api.hpp"
 #include "tt_metal/distributed/mesh_device_view.hpp"
 #include "tt_metal/distributed/mesh_device.hpp"
+#include "tt_metal/distributed/mesh_shape.hpp"
 
 namespace tt::tt_metal::distributed {
 namespace {
