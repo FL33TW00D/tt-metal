@@ -162,6 +162,9 @@ public:
     virtual void dump_memory_blocks(const BufferType &buffer_type, std::ofstream &out) const = 0;
     virtual void dump_memory_blocks(const BufferType &buffer_type, std::ofstream &out, SubDeviceId sub_device_id) const = 0;
 
+    virtual std::vector<std::unordered_map<std::string, std::string>> get_block_table(
+        const BufferType& buffer_type) const = 0;
+
     // Set of logical ethernet core coordinates
     // core.x represents connectivity to one other chip, i.e. cores with <x> all connect to same chip
     // core.y represents different channels along one <x>
