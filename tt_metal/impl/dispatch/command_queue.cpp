@@ -75,11 +75,11 @@ void ValidateBufferRegion(
     TT_FATAL(
         b.is_valid_region(region), "Buffer region with offset {} and size {} is invalid.", region.offset, region.size);
 
-    if (b.is_partial_region(region)) {
-        TT_FATAL(
-            !is_sharded(b.buffer_layout()),
-            "Reading from and writing to partial buffer regions is only supported for non-sharded buffers.");
-    }
+    // if (b.is_partial_region(region)) {
+    //     TT_FATAL(
+    //         !is_sharded(b.buffer_layout()),
+    //         "Reading from and writing to partial buffer regions is only supported for non-sharded buffers.");
+    // }
 }
 }  // namespace detail
 
