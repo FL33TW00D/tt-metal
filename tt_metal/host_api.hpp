@@ -813,6 +813,49 @@ void EnqueueTrace(CommandQueue& cq, uint32_t trace_id, bool blocking);
 
 // clang-format off
 /**
+ * Begin Light Metal binary capturing on a device. This will trace host API calls and device (metal trace) workloads to a
+ * binary blob returned to caller when tracing is finished, which can later be rerun directly from binary.
+ *
+ * Return value: void
+ *
+ * | Argument     | Description                                                            | Type                          | Valid Range                        | Required |
+ * |--------------|------------------------------------------------------------------------|-------------------------------|------------------------------------|----------|
+ * | device       | The device being traced                                                | Device *                      |                                    | Yes      |
+ */
+// clang-format on
+void LightMetalBeginCapture(Device* device);
+
+// clang-format off
+/**
+ * Ends Light Metal binary capturing on a device and returns the binary blob to the user.
+ *
+ * Return value: std::vector<uint8_t>
+ *
+ * | Argument     | Description                                                            | Type                          | Valid Range                        | Required |
+ * |--------------|------------------------------------------------------------------------|-------------------------------|------------------------------------|----------|
+ * | device       | The device being traced                                                | Device *                      |                                    | Yes      |
+ */
+// clang-format on
+std::vector<uint8_t> LightMetalEndCapture(Device* device);
+
+// clang-format off
+/**
+ * Load an existing trace descriptor onto a particular device and command queue and assign it a unique trace id.
+ *
+ * Return value: void
+ *
+ * | Argument     | Description                                                            | Type                          | Valid Range                        | Required |
+ * |--------------|------------------------------------------------------------------------|-------------------------------|------------------------------------|----------|
+ * | device       | The device to load the trace onto.                                     | Device *                      |                                    | Yes      |
+ * | cq_id        | The command queue id to load the trace onto.                           | uint8_t                       |                                    | Yes      |
+ * | trace_id     | A unique id to represent the trace on device.                          | uint32_t                      |                                    | Yes      |
+ * | trace_desc   | The trace descriptor to load onto the device.                          | detail::TraceDescriptor&      |                                    | Yes      |
+ */
+// clang-format on
+void LoadTrace(Device* device, const uint8_t cq_id, const uint32_t trace_id, detail::TraceDescriptor& trace_desc);
+
+// clang-format off
+/**
  * Read device side profiler data and dump results into device side CSV log
  *
  * This function only works in PROFILER builds. Please refer to the "Device Program Profiler" section for more information.
