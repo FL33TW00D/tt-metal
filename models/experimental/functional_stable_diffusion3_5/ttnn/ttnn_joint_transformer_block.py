@@ -116,38 +116,52 @@ class ttnn_JointTransformerBlock:
             norm_hidden_states, gate_msa, shift_mlp, scale_mlp, gate_mlp, norm_hidden_states2, gate_msa2 = self.norm1(
                 hidden_states_i, emb=temb, parameters=parameters["norm1"]
             )
-            print("config after ada_layer_norm_x is", norm_hidden_states.memory_config())
+            print("config of h2", norm_hidden_states2.memory_config())
+            norm_hidden_states2 = ttnn.to_memory_config(
+                norm_hidden_states2, memory_config=ttnn.DRAM_MEMORY_CONFIG
+            )  # later use
+            print("config of h2 after DRAM", norm_hidden_states2.memory_config())
         else:
             norm_hidden_states, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.norm1(
                 hidden_states_i, emb=temb, parameters=parameters["norm1"]
             )
-            print("config after ada_layer_norm is", norm_hidden_states.memory_config())
+        print("hidden states config after layernormx in joint trans after DRAM", hidden_states_i.memory_config())
 
+        # dummmy operations to know whether hidden_states_i or norm_hidden_states2 are getting transferred to DRAM(as both are consecutive op's visualised via ttnn visualiser)
+        spam1 = torch.randn(100, 100, dtype=torch.bfloat16)
+        spam1_tt = ttnn.from_torch(
+            spam1, dtype=ttnn.bfloat16, memory_config=ttnn.DRAM_MEMORY_CONFIG, layout=ttnn.TILE_LAYOUT
+        )
+        spam2_tt = ttnn.add(spam1_tt, spam1_tt)
+
+        hidden_states_i = ttnn.to_memory_config(hidden_states_i, memory_config=ttnn.DRAM_MEMORY_CONFIG)  # later use
+        norm_hidden_states = ttnn.reallocate(norm_hidden_states)
+        print("hidden states config after layernormx in joint trans1", hidden_states_i.memory_config())
         if self.context_pre_only:
             norm_encoder_hidden_states = self.norm1_context(
                 encoder_hidden_states, temb, parameters=parameters["norm1_context"]
             )
-            print("config after norm_continuous", norm_encoder_hidden_states.memory_config())
         else:
             norm_encoder_hidden_states, c_gate_msa, c_shift_mlp, c_scale_mlp, c_gate_mlp = self.norm1_context(
                 encoder_hidden_states, emb=temb, parameters=parameters["norm1_context"]
             )
-            print("config after norm_zero", norm_encoder_hidden_states.memory_config())
-
+        # hidden_states,norm_hidden_states
         # Attention.
         attn_output, context_attn_output_sh = self.attn(
             hidden_states=norm_hidden_states,
             encoder_hidden_states=norm_encoder_hidden_states,
             # device=norm_hidden_states.device(),
         )
-        print("config after atten", attn_output.memory_config())
+        ttnn.deallocate(norm_hidden_states)
+        ttnn.deallocate(norm_encoder_hidden_states)
 
         # Process attention outputs for the `hidden_states`.
         # attn_output = ttnn.unsqueeze(gate_msa, 1) * attn_output
         # hidden_states = hidden_states + attn_output
         attn_output = ttnn.to_memory_config(attn_output, ttnn.L1_MEMORY_CONFIG)
         attn_output = attn_output * gate_msa
-        print("before add", hidden_states_i.memory_config(), attn_output.memory_config())
+        hidden_states_i = ttnn.to_memory_config(hidden_states_i, memory_config=ttnn.L1_MEMORY_CONFIG)
+        print("hidden states config after layernormx in joint trans2", hidden_states_i.memory_config())
         hidden_states = hidden_states_i + attn_output
         ttnn.deallocate(attn_output)
         ttnn.deallocate(hidden_states_i)
@@ -159,8 +173,9 @@ class ttnn_JointTransformerBlock:
         context_attn_output_sh = ttnn.reallocate(context_attn_output_sh)
 
         if self.use_dual_attention:
+            norm_hidden_states2 = ttnn.to_memory_config(norm_hidden_states2, memory_config=ttnn.L1_MEMORY_CONFIG)
             attn_output2 = self.attn2(hidden_states=norm_hidden_states2)  # , device=norm_hidden_states2.device())
-
+            ttnn.deallocate(norm_hidden_states2)
             # attn_output2 = ttnn.unsqueeze(gate_msa2, 1) * attn_output2
             attn_output2 = ttnn.to_memory_config(attn_output2, ttnn.L1_MEMORY_CONFIG)
             attn_output2 = attn_output2 * gate_msa2
@@ -176,7 +191,7 @@ class ttnn_JointTransformerBlock:
         if not self.context_pre_only:
             c_shift_mlp = ttnn.reallocate(c_shift_mlp)
             c_gate_msa = ttnn.reallocate(c_gate_msa)
-            c_shift_mlp = ttnn.reallocate(c_scale_mlp)
+            c_scale_mlp = ttnn.reallocate(c_scale_mlp)
 
         if self._chunk_size is not None:
             # "feed_forward_chunk_size" can be used to save memory
@@ -224,6 +239,9 @@ class ttnn_JointTransformerBlock:
             encoder_hidden_states = encoder_hidden_states + context_ff_output
             ttnn.deallocate(context_ff_output)
             ttnn.deallocate(c_gate_mlp)
+            encoder_hidden_states = ttnn.to_memory_config(
+                encoder_hidden_states, ttnn.L1_MEMORY_CONFIG, dtype=ttnn.bfloat16
+            )
             # additional realocate to save all possible spaces
             encoder_hidden_states = ttnn.reallocate(encoder_hidden_states)
             hidden_states = ttnn.reallocate(hidden_states)
