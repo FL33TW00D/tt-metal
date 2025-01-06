@@ -126,6 +126,14 @@ inline void CaptureCreateBuffer(std::shared_ptr<Buffer> buffer, const Interleave
 inline void CaptureDeallocateBuffer(Buffer* buffer) {
     auto& ctx = LightMetalCaptureContext::Get();
 
+    // TODO (kmabee) - Workaround for now. Program Binaries buffer is created via Buffer::create() but can be
+    // deallocated on Program destruction while capturing is still enabled depending on test structure (scope).
+    // If we avoid recursively tracing host APIs this could go away.
+    if (!ctx.IsInMap(buffer)) {
+        log_warning(tt::LogMetalTrace, "Cannot capture DeallocateBuffer() without CreateBuffer() - ignoring.");
+        return;
+    }
+
     auto buffer_global_id = ctx.GetGlobalId(buffer);
 
     log_debug(
