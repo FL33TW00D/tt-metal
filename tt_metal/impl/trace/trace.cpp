@@ -93,8 +93,10 @@ void Trace::initialize_buffer(CommandQueue& cq, const std::shared_ptr<TraceBuffe
         cq.device()->id(),
         trace_region_size);
     // Commit trace to device DRAM
-    trace_buffer->buffer =
-        Buffer::create(cq.device(), padded_size, page_size, BufferType::TRACE, TensorMemoryLayout::INTERLEAVED);
+    // TODO (kmabee) - Revisit this for Light Metal Binary, Buffer::create() is not traced.
+    trace_buffer->buffer = CreateBuffer(InterleavedBufferConfig{
+        cq.device(), padded_size, page_size, BufferType::TRACE, TensorMemoryLayout::INTERLEAVED});
+
     EnqueueWriteBuffer(cq, trace_buffer->buffer, trace_data, kBlocking);
     log_trace(
         LogMetalTrace,
