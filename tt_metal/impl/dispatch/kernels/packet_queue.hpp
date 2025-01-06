@@ -115,6 +115,17 @@ bool process_queues(F&& func) {
         std::forward<F>(func), std::make_index_sequence<NetworkTypeSequence::size>());
 }
 
+void delay(int i) {
+    while (i--) {
+        bool sleep_done = false;
+        const auto sleep_start = get_timestamp();
+        auto time_now = get_timestamp();
+        const uint64_t sleep_cycles = 1000 * 1000 * 1000;
+        while (sleep_start - time_now < sleep_cycles) {
+            time_now = get_timestamp();
+        }
+    }
+}
 
 class packet_queue_state_t;
 class packet_input_queue_state_t;
@@ -346,7 +357,9 @@ public:
         if constexpr (network_type == DispatchRemoteNetworkType::NONE || cb_mode == true || network_type == DispatchRemoteNetworkType::DISABLE_QUEUE) {
             return;
         } else if constexpr (network_type == DispatchRemoteNetworkType::ETH) {
+            delay(300);
             eth_write_remote_reg(reg_addr, val);
+            delay(300);
         } else {
             const auto dest_addr = get_noc_addr(this->remote_x, this->remote_y, reg_addr);
             noc_inline_dw_write(dest_addr, val);
