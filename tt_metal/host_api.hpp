@@ -612,7 +612,7 @@ RuntimeArgsData& GetCommonRuntimeArgs(const Program& program, KernelHandle kerne
 // clang-format on
 void EnqueueReadBuffer(
     CommandQueue& cq,
-    std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
+    const std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>>& buffer,
     void* dst,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids = {});
@@ -733,7 +733,7 @@ void EnqueueReadSubBuffer(
 template <typename DType>
 void EnqueueWriteBuffer(
     CommandQueue& cq,
-    std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
+    const std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>>& buffer,
     std::vector<DType>& src,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids = {}) {
@@ -757,7 +757,7 @@ void EnqueueWriteBuffer(
 // clang-format on
 void EnqueueWriteBuffer(
     CommandQueue& cq,
-    std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
+    const std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>>& buffer,
     HostDataType src,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids = {});
