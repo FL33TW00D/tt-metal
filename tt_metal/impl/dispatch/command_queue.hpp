@@ -575,25 +575,25 @@ private:
     void enqueue_read_buffer(
         std::shared_ptr<Buffer>& buffer,
         void* dst,
-        const BufferRegion region,
+        const BufferRegion& region,
         bool blocking,
         tt::stl::Span<const SubDeviceId> sub_device_ids);
     void enqueue_read_buffer(
         Buffer& buffer,
         void* dst,
-        const BufferRegion region,
+        const BufferRegion& region,
         bool blocking,
         tt::stl::Span<const SubDeviceId> sub_device_ids);
     void enqueue_write_buffer(
         std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
         HostDataType src,
-        const BufferRegion region,
+        const BufferRegion& region,
         bool blocking,
         tt::stl::Span<const SubDeviceId> sub_device_ids);
     void enqueue_write_buffer(
         Buffer& buffer,
         const void* src,
-        const BufferRegion region,
+        const BufferRegion& region,
         bool blocking,
         tt::stl::Span<const SubDeviceId> sub_device_ids);
     void enqueue_program(Program& program, bool blocking);
@@ -613,14 +613,14 @@ private:
         CommandQueue& cq,
         std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
         void* dst,
-        const BufferRegion region,
+        const BufferRegion& region,
         bool blocking,
         tt::stl::Span<const SubDeviceId> sub_device_ids);
     friend void EnqueueWriteBufferImpl(
         CommandQueue& cq,
         std::variant<std::reference_wrapper<Buffer>, std::shared_ptr<Buffer>> buffer,
         HostDataType src,
-        const BufferRegion region,
+        const BufferRegion& region,
         bool blocking,
         tt::stl::Span<const SubDeviceId> sub_device_ids);
     friend void EnqueueGetBufferAddrImpl(void* dst_buf_addr, const Buffer* buffer);
