@@ -221,6 +221,10 @@ public:
 
             this->local_wptr_update = reinterpret_cast<volatile uint32_t*>(
                 STREAM_REG_ADDR(NUM_PTR_REGS_PER_INPUT_QUEUE*queue_id, STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_UPDATE_REG_INDEX));
+
+            DPRINT << "Input queue " << (uint32_t)queue_id << " Wptr reg = " << HEX() << STREAM_REG_ADDR(NUM_PTR_REGS_PER_INPUT_QUEUE*queue_id, STREAM_REMOTE_DEST_BUF_SPACE_AVAILABLE_REG_INDEX) << ENDL();
+            DPRINT << "Input queue " << (uint32_t)queue_id << " Rptr Cleared addr = " << HEX() << (uint32_t)local_rptr_cleared_val << ENDL();
+
         } else {
             this->local_wptr_val = &this->local_wptr;
             uint32_t adjusted_queue_id = queue_id > 15 ? queue_id - 11 : queue_id;
@@ -239,6 +243,9 @@ public:
                 STREAM_REG_ADDR(NUM_PTR_REGS_PER_OUTPUT_QUEUE*adjusted_queue_id, STREAM_REMOTE_DEST_BUF_SIZE_REG_INDEX));
             this->local_rptr_cleared_reset = reinterpret_cast<volatile uint32_t*>(
                 STREAM_REG_ADDR(NUM_PTR_REGS_PER_OUTPUT_QUEUE*adjusted_queue_id+1, STREAM_REMOTE_DEST_BUF_SIZE_REG_INDEX));
+
+            DPRINT << "Output queue " << (uint32_t)queue_id << " Wptr addr = " << HEX() << (uint32_t)local_wptr_val << ENDL();
+            DPRINT << "Output queue " << (uint32_t)queue_id << " Rptr Cleared addr = " << HEX() << (uint32_t)this->local_rptr_cleared_val << ENDL();
         }
 
         this->remote_wptr_update_addr =
@@ -357,9 +364,10 @@ public:
         if constexpr (network_type == DispatchRemoteNetworkType::NONE || cb_mode == true || network_type == DispatchRemoteNetworkType::DISABLE_QUEUE) {
             return;
         } else if constexpr (network_type == DispatchRemoteNetworkType::ETH) {
-            delay(300);
+            // delay(600);
+            // DPRINT << "Remote reg write eth " << reg_addr / 16 << " " <<  (this->get_queue_local_wptr() % 128) << "\n";
             eth_write_remote_reg(reg_addr, val);
-            delay(300);
+            // delay(600);
         } else {
             const auto dest_addr = get_noc_addr(this->remote_x, this->remote_y, reg_addr);
             noc_inline_dw_write(dest_addr, val);
@@ -442,6 +450,7 @@ public:
     }
 
     inline void cb_mode_inc_local_sem_val(uint32_t val) {
+        if (!val) return;
         uint32_t sem_l1_addr = get_semaphore<fd_core_type>(this->cb_mode_local_sem_id);
         uint64_t sem_noc_addr = get_noc_addr(sem_l1_addr);
         noc_semaphore_inc(sem_noc_addr, val);
@@ -449,11 +458,11 @@ public:
     }
 
     inline void cb_mode_inc_remote_sem_val(uint32_t val) {
+        if (!val) return;
         uint32_t sem_l1_addr = get_semaphore<fd_core_type>(this->cb_mode_remote_sem_id);
         uint64_t sem_noc_addr = get_noc_addr(remote_x, remote_y, sem_l1_addr);
-        if (val) {
-            noc_semaphore_inc(sem_noc_addr, val);
-        }
+        noc_semaphore_inc(sem_noc_addr, val);
+        noc_async_atomic_barrier();
     }
 
     template<bool is_input>
@@ -825,14 +834,14 @@ protected:
             DPRINT << "  curr_output_total_words_in_flight: " << DEC() << this->curr_output_total_words_in_flight << ENDL();
             for (uint32_t j = 0; j < MAX_SWITCH_FAN_IN; j++) {
                 DPRINT << "       from input queue id " << DEC() <<
-                            this->input_queue_array[j].get_queue_id() << ": "
+                            (uint32_t)this->input_queue_array[j].get_queue_id() << ": "
                             << DEC() << this->curr_input_queue_words_in_flight[j]
                             << ENDL();
             }
             DPRINT << "  prev_output_total_words_in_flight: " << DEC() << this->prev_output_total_words_in_flight << ENDL();
             for (uint32_t j = 0; j < MAX_SWITCH_FAN_IN; j++) {
                 DPRINT << "       from input queue id " << DEC() <<
-                            this->input_queue_array[j].get_queue_id() << ": "
+                            (uint32_t)this->input_queue_array[j].get_queue_id() << ": "
                             << DEC() << this->prev_input_queue_words_in_flight[j]
                             << ENDL();
             }
@@ -974,12 +983,8 @@ public:
         num_words_available_in_input = std::min(num_words_available_in_input, num_words_before_input_rptr_wrap);
         uint32_t num_words_free_in_output = this->get_queue_data_num_words_free();
         uint32_t num_words_to_forward = std::min(num_words_available_in_input, num_words_free_in_output);
-
-        if (num_words_to_forward == 0) {
-            return 0;
-        }
-
         uint32_t output_buf_words_before_wptr_wrap = this->get_queue_words_before_wptr_wrap();
+
         num_words_to_forward = std::min(num_words_to_forward, output_buf_words_before_wptr_wrap);
         num_words_to_forward = std::min(num_words_to_forward, this->output_max_send_words);
 

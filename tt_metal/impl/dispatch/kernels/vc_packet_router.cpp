@@ -212,6 +212,8 @@ using output_queue_network_sequence = NetworkTypeSequence<remote_tx_network_type
 using output_queue_cb_mode_sequence = CBModeTypeSequence<output_depacketize[0], output_depacketize[1], output_depacketize[2], output_depacketize[3]>;
 
 void kernel_main() {
+    DPRINT << "vc_packet_router timeout = " << timeout_cycles << ENDL();
+
     write_kernel_status(kernel_status, PQ_TEST_STATUS_INDEX, PACKET_QUEUE_TEST_STARTED);
     write_kernel_status(kernel_status, PQ_TEST_MISC_INDEX, 0xff000000);
     write_kernel_status(kernel_status, PQ_TEST_MISC_INDEX+1, 0xbb000000 | router_lanes);
@@ -229,6 +231,8 @@ void kernel_main() {
                               output_depacketize[i], output_depacketize_log_page_size[i],
                               output_depacketize_local_sem[i], output_depacketize_downstream_sem[i],
                               output_depacketize_remove_header[i]);
+        DPRINT << "VC Packet Input queue remote " << +remote_rx_x[i] << ", " << +remote_rx_y[i] << ENDL();
+        DPRINT << "VC Packet Output queue remote " << +remote_tx_x[i] << ", " << +remote_tx_y[i] << ENDL();
     }
 
     if (!wait_all_input_output_ready<input_queue_network_sequence,

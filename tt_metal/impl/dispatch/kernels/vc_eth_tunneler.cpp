@@ -172,7 +172,7 @@ constexpr uint32_t kernel_status_buf_size_bytes = get_compile_time_arg_val(45);
 // careful, may be null
 tt_l1_ptr uint32_t* const kernel_status = reinterpret_cast<tt_l1_ptr uint32_t*>(kernel_status_buf_addr_arg);
 
-constexpr uint32_t timeout_cycles = get_compile_time_arg_val(46);
+constexpr uint32_t timeout_cycles = get_compile_time_arg_val(46); // (uint32_t)1000 * (uint32_t)1000 * 9000; // get_compile_time_arg_val(46);
 constexpr uint32_t inner_stop_mux_d_bypass = get_compile_time_arg_val(47);
 
 packet_input_queue_state_t input_queues[MAX_TUNNEL_LANES];
@@ -230,7 +230,10 @@ void kernel_main() {
     write_kernel_status(kernel_status, PQ_TEST_MISC_INDEX + 3, 0xDDCCBBAA);
     write_kernel_status(kernel_status, PQ_TEST_MISC_INDEX + 4, endpoint_id_start_index);
 
+    *reinterpret_cast<uint32_t*>(0xf4ff) = 0xdeadbeef;
+
     for (uint32_t i = 0; i < tunnel_lanes; i++) {
+        DPRINT << "VC Eth Input queue remote " << +remote_sender_x[i] << ", " << +remote_sender_y[i] << " network = " << (uint32_t)remote_sender_network_type[i] << ENDL();
         input_queues[i].init(
             i,
             in_queue_start_addr_words + i * in_queue_size_words,
@@ -242,6 +245,7 @@ void kernel_main() {
     }
 
     for (uint32_t i = 0; i < tunnel_lanes; i++) {
+        DPRINT << "VC Eth Output queue remote " << +remote_receiver_x[i] << ", " << +remote_receiver_y[i] << " network = " << (uint32_t)remote_receiver_network_type[i] << ENDL();
         output_queues[i].init(
             i + tunnel_lanes, //MAX_TUNNEL_LANES,
             remote_receiver_queue_start_addr_words[i],
@@ -269,7 +273,16 @@ void kernel_main() {
     uint64_t iter = 0;
     uint64_t start_timestamp = get_timestamp();
     uint32_t switch_counter = 0;
+    uint32_t progress_timestamp = start_timestamp & 0xFFFFFFFF;
+    bool timeout = false;
     while (!all_outputs_finished) {
+        if constexpr (timeout_cycles > 0) {
+            uint32_t cycles_since_progress = get_timestamp_32b() - progress_timestamp;
+            if (cycles_since_progress > timeout_cycles) {
+                timeout = true;
+                break;
+            }
+        }
         iter++;
         switch_counter++;
         all_outputs_finished = switch_counter >= SWITCH_THRESHOLD;
@@ -320,7 +333,14 @@ void kernel_main() {
 
     }
 
-    bool timeout = false;
+    // DPRINT << "VC Eth Tunneler\n";
+    // for (uint32_t i = 0; i < tunnel_lanes; i++) {
+    //     input_queues[i].dprint_object();
+    // }
+    // for (uint32_t i = 0; i < tunnel_lanes; i++) {
+    //     output_queues[i].dprint_object();
+    // }
+    timeout = false;
     write_kernel_status(kernel_status, PQ_TEST_MISC_INDEX, 0xff000002);
     process_queues<output_queue_network_sequence, output_queue_cb_mode_sequence>([&]<auto network_type, auto cb_mode, auto sequence_i>(auto) -> bool {
         // inputs for this output queue

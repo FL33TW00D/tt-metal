@@ -143,6 +143,7 @@ using output_queue_network_sequence = NetworkTypeSequence<tx_network_type>;
 using output_queue_cb_mode_sequence = CBModeTypeSequence<output_depacketize>;
 
 void kernel_main() {
+    DPRINT << "packet_mux timeout = " << timeout_cycles << ENDL();
 
     write_test_results(test_results, PQ_TEST_STATUS_INDEX, PACKET_QUEUE_TEST_STARTED);
     write_test_results(test_results, PQ_TEST_MISC_INDEX, 0xff000000);
@@ -154,6 +155,7 @@ void kernel_main() {
                              input_packetize[i], input_packetize_log_page_size[i],
                              input_packetize_local_sem[i], input_packetize_upstream_sem[i],
                              input_packetize_src_endpoint[i], input_packetize_dest_endpoint[i]);
+        DPRINT << "Packet MUX Input queue remote " << +remote_rx_x[i] << ", " << +remote_rx_y[i] << ENDL();
     }
 
     output_queue.init(mux_fan_in, remote_tx_queue_start_addr_words, remote_tx_queue_size_words,
@@ -162,6 +164,7 @@ void kernel_main() {
                       output_depacketize, output_depacketize_log_page_size,
                       output_depacketize_downstream_sem, output_depacketize_local_sem,
                       output_depacketize_remove_header);
+        DPRINT << "Packet MUX Output queue remote " << +remote_tx_x << ", " << +remote_tx_y << ENDL();
 
     if (!wait_all_input_output_ready<
             input_queue_network_sequence,
