@@ -13,17 +13,17 @@ using RoutingTable =
 
 class RoutingTableGenerator {
    public:
-    RoutingTableGenerator(const std::string& mesh_graph_desc_yaml_file);
-    ~RoutingTableGenerator() = default;
+       explicit RoutingTableGenerator(const std::string& mesh_graph_desc_yaml_file);
+       ~RoutingTableGenerator() = default;
 
-    void dump_to_yaml();
-    void load_from_yaml();
+       void dump_to_yaml();
+       void load_from_yaml();
 
-    void print_connectivity() const { this->mesh_graph_->print_connectivity(); }
+       void print_connectivity() const { this->mesh_graph_->print_connectivity(); }
 
-    const IntraMeshConnectivity& get_intra_mesh_connectivity() const {
-        return this->mesh_graph_->get_intra_mesh_connectivity();
-    }
+       const IntraMeshConnectivity& get_intra_mesh_connectivity() const {
+           return this->mesh_graph_->get_intra_mesh_connectivity();
+       }
     const InterMeshConnectivity& get_inter_mesh_connectivity() const {
         return this->mesh_graph_->get_inter_mesh_connectivity();
     }
