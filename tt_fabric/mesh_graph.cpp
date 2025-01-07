@@ -58,18 +58,18 @@ void MeshGraph::add_to_connectivity(
     if (src_mesh_id != dest_mesh_id) {
         // Intermesh Connection
         auto& edge = this->inter_mesh_connectivity_[src_mesh_id][src_chip_id];
-        if (edge.find(dest_mesh_id) == edge.end()) {
+        auto [it, is_inserted] =
             edge.insert({dest_mesh_id, RouterEdge{.port_direction = port_direction, {dest_chip_id}, .weight = 0}});
-        } else {
-            edge[dest_mesh_id].connected_chip_ids.push_back(dest_chip_id);
+        if (!is_inserted) {
+            it->second.connected_chip_ids.push_back(dest_chip_id);
         }
     } else {
         // Intramesh Connection
         auto& edge = this->intra_mesh_connectivity_[src_mesh_id][src_chip_id];
-        if (edge.find(dest_chip_id) == edge.end()) {
+        auto [it, is_inserted] =
             edge.insert({dest_chip_id, RouterEdge{.port_direction = port_direction, {dest_chip_id}, .weight = 0}});
-        } else {
-            edge[dest_mesh_id].connected_chip_ids.push_back(dest_chip_id);
+        if (!is_inserted) {
+            it->second.connected_chip_ids.push_back(dest_chip_id);
         }
     }
 }
