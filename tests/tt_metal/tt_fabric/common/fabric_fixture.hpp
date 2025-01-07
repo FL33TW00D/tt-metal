@@ -9,6 +9,9 @@
 #include "tt_metal/common/tt_backend_api_types.hpp"
 #include "tt_metal/llrt/rtoptions.hpp"
 
+namespace tt::tt_fabric {
+namespace fabric_router_tests {
+
 class ControlPlaneFixture : public ::testing::Test {
    protected:
        tt::ARCH arch_;
@@ -24,3 +27,6 @@ class ControlPlaneFixture : public ::testing::Test {
 
        void TearDown() override {}
 };
+
+}  // namespace fabric_router_tests
+}  // namespace tt::tt_fabric
