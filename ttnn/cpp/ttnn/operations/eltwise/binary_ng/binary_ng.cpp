@@ -19,8 +19,12 @@ Tensor BinaryNg<binary_op_type>::invoke(
     tt::stl::Span<const ttnn::operations::unary::UnaryOpType> lhs_activations,
     tt::stl::Span<const ttnn::operations::unary::UnaryOpType> rhs_activations,
     tt::stl::Span<const ttnn::operations::unary::UnaryOpType> post_activations) {
-    auto input_a = typecast_to(DataType::BFLOAT16, input_tensor_a);
-    auto input_b = typecast_to(DataType::BFLOAT16, input_tensor_b);
+    Tensor input_a = input_tensor_a;
+    Tensor input_b = input_tensor_b;
+    if (input_tensor_a.get_dtype() == DataType::BFLOAT8_B || input_tensor_b.get_dtype() == DataType::BFLOAT8_B) {
+        input_a = typecast_to(DataType::BFLOAT16, input_tensor_a);
+        input_b = typecast_to(DataType::BFLOAT16, input_tensor_b);
+    }
 
     return ttnn::prim::binary_ng(
         queue_id,
@@ -68,7 +72,11 @@ Tensor BinaryNg<binary_op_type>::invoke(
     tt::stl::Span<const ttnn::operations::unary::UnaryOpType> lhs_activations,
     tt::stl::Span<const ttnn::operations::unary::UnaryOpType> rhs_activations,
     tt::stl::Span<const ttnn::operations::unary::UnaryOpType> post_activations) {
-    auto input_a = typecast_to(DataType::BFLOAT16, input_tensor_a);
+    Tensor input_a = input_tensor_a;
+    if (input_tensor_a.get_dtype() == DataType::BFLOAT8_B) {
+        std::cout << "typecast to bf16" << std::endl;
+        input_a = typecast_to(DataType::BFLOAT16, input_tensor_a);
+    }
 
     return ttnn::prim::binary_ng(
         queue_id,
@@ -109,6 +117,7 @@ template struct BinaryNg<BinaryOpType::ADD>;
 template struct BinaryNg<BinaryOpType::SUB>;
 template struct BinaryNg<BinaryOpType::MUL>;
 template struct BinaryNg<BinaryOpType::DIV>;
+template struct BinaryNg<BinaryOpType::RSUB>;
 template struct BinaryNg<BinaryOpType::GT>;
 template struct BinaryNg<BinaryOpType::LT>;
 template struct BinaryNg<BinaryOpType::LTE>;

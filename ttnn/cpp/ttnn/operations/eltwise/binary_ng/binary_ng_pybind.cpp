@@ -91,6 +91,7 @@ void py_module(py::module& module) {
     detail::bind_binary_ng_operation(module, ttnn::experimental::sub, "Binary Sub Operation");
     detail::bind_binary_ng_operation(module, ttnn::experimental::mul, "Binary Mul Operation");
     detail::bind_binary_ng_operation(module, ttnn::experimental::div, "Binary Div Operation");
+    detail::bind_binary_ng_operation(module, ttnn::experimental::rsub, "Binary Rsub Operation");
     detail::bind_binary_ng_operation(module, ttnn::experimental::gt, "Binary Greater Than Operation");
     detail::bind_binary_ng_operation(module, ttnn::experimental::lt, "Binary Less Than Operation");
     detail::bind_binary_ng_operation(module, ttnn::experimental::lte, "Binary Less Than or Equal To Operation");
