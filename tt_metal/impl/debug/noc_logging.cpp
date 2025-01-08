@@ -12,7 +12,7 @@
 
 #include "debug_helpers.hpp"
 #include "hostdevcommon/dprint_common.h"
-#include "tt_metal/impl/device/device.hpp"
+#include <device_impl.hpp>
 
 using namespace tt::tt_metal;
 

@@ -5,7 +5,7 @@
 #include "trace_buffer.hpp"
 
 #include <utility>
-#include "tt_metal/impl/device/device.hpp"
+#include <device_impl.hpp>
 
 namespace tt::tt_metal {
 

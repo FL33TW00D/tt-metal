@@ -5,7 +5,7 @@
 #include <cstdint>
 
 #include "tt_metal/experimental/hal.hpp"
-#include "tt_metal/llrt/hal.hpp"
+#include <hal.hpp>
 
 using tt::tt_metal::HalL1MemAddrType;
 using tt::tt_metal::HalMemType;

@@ -14,7 +14,7 @@
 #include "ttnn/cpp/ttnn/operations/data_movement/slice/slice.hpp"
 
 // FIXME: ARCH_NAME specific include
-#include "noc/noc_parameters.h"  // DRAM_ALIGNMENT
+#include <tt-metalium/noc_parameters.h>  // DRAM_ALIGNMENT
 
 namespace ttnn::operations::data_movement {
 

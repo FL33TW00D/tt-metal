@@ -4,9 +4,9 @@
 
 #include <gtest/gtest.h>
 
-#include "tt_metal/distributed/mesh_device.hpp"
-#include "tt_metal/distributed/mesh_device_view.hpp"
-#include "tt_metal/llrt/tt_cluster.hpp"
+#include <tt-metalium/mesh_device.hpp>
+#include <tt-metalium/mesh_device_view.hpp>
+#include <tt-metalium/tt_cluster.hpp>
 
 namespace tt::tt_metal::distributed::test {
 

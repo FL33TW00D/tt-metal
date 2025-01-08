@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tt_metal/impl/device/device_pool.hpp"
+#include <device_pool.hpp>
 
 #include <numa.h>
 
-#include "tt_metal/detail/tt_metal.hpp"
+#include <tt_metal.hpp>
 #include "tt_metal/impl/debug/noc_logging.hpp"
 #include "tt_metal/impl/debug/watcher_server.hpp"
-#include "tt_metal/impl/device/device_handle.hpp"
+#include <device_handle.hpp>
 #include "tt_metal/impl/dispatch/topology.hpp"
 
 using namespace tt::tt_metal;

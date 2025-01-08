@@ -7,7 +7,7 @@
 
 #include "core_config.h"  // ProgrammableCoreType
 #include "dev_mem_map.h"
-#include "noc/noc_parameters.h"
+#include <tt-metalium/noc_parameters.h>
 #include "noc/noc_overlay_parameters.h"
 #include "tensix.h"
 

@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ttnn/cpp/ttnn/operations/ccl/common/types/ccl_types_args_emitters.hpp"
-#include "impl/buffers/buffer_constants.hpp"
+#include <tt-metalium/buffer_constants.hpp>
 #include "ttnn/cpp/ttnn/tensor/tensor.hpp"
 #include "ttnn/tensor/types.hpp"
-#include "tt_metal/impl/device/device.hpp"
+#include <tt-metalium/device_impl.hpp>
 
 using namespace tt::tt_metal;
 

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "eth_l1_address_map.h"
+#include <tt-metalium/eth_l1_address_map.h>
 #include "ttnn/cpp/ttnn/tensor/tensor_impl.hpp"
 #include "ttnn/operations/ccl/shared_with_host/hetergeneous_data_structs.hpp"
 #include "ttnn/cpp/ttnn/operations/ccl/ccl_host_types.hpp"

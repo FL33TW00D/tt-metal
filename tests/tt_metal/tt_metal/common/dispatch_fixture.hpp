@@ -5,13 +5,13 @@
 #pragma once
 
 #include "gtest/gtest.h"
-#include "tt_metal/host_api.hpp"
-#include "tt_metal/detail/tt_metal.hpp"
+#include <tt-metalium/host_api.hpp>
+#include <tt-metalium/tt_metal.hpp>
 #include "tt_metal/test_utils/env_vars.hpp"
-#include "tt_metal/impl/program/program.hpp"
-#include "tt_metal/impl/dispatch/command_queue.hpp"
-#include "tt_metal/impl/device/device.hpp"
-#include "tt_metal/impl/device/device_pool.hpp"
+#include <tt-metalium/program_impl.hpp>
+#include <tt-metalium/command_queue.hpp>
+#include <tt-metalium/device_impl.hpp>
+#include <tt-metalium/device_pool.hpp>
 
 // A dispatch-agnostic test fixture
 class DispatchFixture : public ::testing::Test {

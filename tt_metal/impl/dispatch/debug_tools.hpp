@@ -5,8 +5,8 @@
 #include <string>
 #include <fstream>
 
-#include "tt_metal/host_api.hpp"
-#include "tt_metal/impl/device/device.hpp"
+#include <host_api.hpp>
+#include <device_impl.hpp>
 #include "command_queue_interface.hpp"
 
 namespace internal {
