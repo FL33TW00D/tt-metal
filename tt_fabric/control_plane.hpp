@@ -9,6 +9,9 @@
 #include "tt_metal/llrt/rtoptions.hpp"
 #include "tt_fabric/hw/inc/routing_table.h"
 
+// TODO: ARCH_NAME specific, must remove
+#include "eth_l1_address_map.h"
+
 namespace tt::tt_fabric {
 
 class ControlPlane {

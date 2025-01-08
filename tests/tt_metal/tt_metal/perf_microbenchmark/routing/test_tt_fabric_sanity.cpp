@@ -27,24 +27,6 @@ using json = nlohmann::json;
 
 std::mt19937 global_rng;
 
-std::vector<CoreCoord> eth_chan_to_phys_core = {
-    {9, 0},
-    {1, 0},
-    {8, 0},
-    {2, 0},
-    {7, 0},
-    {3, 0},
-    {6, 0},
-    {4, 0},
-    {9, 6},
-    {1, 6},
-    {8, 6},
-    {2, 6},
-    {7, 6},
-    {3, 6},
-    {6, 6},
-    {4, 6}};
-
 // decides if the tx puts the data directly on eth or if a noc hop is allowed as well
 bool allow_1st_noc_hop = false;
 
@@ -114,8 +96,8 @@ typedef struct test_board {
     void _init_control_plane(const std::string& mesh_graph_descriptor) {
         try {
             const std::filesystem::path mesh_graph_desc_path =
-                std::filesystem::path(tt::llrt::OptionsG.get_root_dir()) / "tt_fabric/mesh_graph_descriptors" /
-                mesh_graph_descriptor;
+                std::filesystem::path(tt::llrt::RunTimeOptions::get_instance().get_root_dir()) /
+                "tt_fabric/mesh_graph_descriptors" / mesh_graph_descriptor;
             control_plane = std::make_unique<tt::tt_fabric::ControlPlane>(mesh_graph_desc_path.string());
         } catch (const std::exception& e) {
             log_fatal(e.what());
@@ -189,7 +171,7 @@ typedef struct test_board {
         // for each physical chip id, store the neighbors
         // TDOD: update the logic to find inter-mesh neighbors
         for (auto chip_id : physical_chip_ids) {
-            auto neighbors = device_handle_map[chip_id]->get_ethernet_connected_device_ids();
+            auto neighbors = tt::Cluster::instance().get_ethernet_connected_device_ids(chip_id);
             for (auto neighbor : neighbors) {
                 // only append valid chip IDs since the neighbors could include mmio chips (wh galaxy) or
                 // could be outside of the board type (in case of partial galaxy configurations)
@@ -354,7 +336,7 @@ typedef struct test_device {
         }
 
         // populate router cores
-        auto neighbors = device_handle->get_ethernet_connected_device_ids();
+        auto neighbors = tt::Cluster::instance().get_ethernet_connected_device_ids(physical_chip_id);
         for (auto neighbor : neighbors) {
             if (!(board_handle->is_valid_chip_id(neighbor))) {
                 continue;
@@ -804,7 +786,8 @@ typedef struct test_traffic {
             // including the origin chip, the distinct number of chips should be num_hops + 1
             if (chips_in_route.size() == num_hops + 1) {
                 if ((route.size() > num_hops && allow_1st_noc_hop) || route.size() == num_hops) {
-                    available_router_cores.push_back(eth_chan_to_phys_core[i]);
+                    available_router_cores.push_back(
+                        tt::Cluster::instance().get_virtual_eth_core_from_channel(tx_device->physical_chip_id, i));
                 }
             }
         }
@@ -1245,7 +1228,7 @@ int main(int argc, char **argv) {
         log_fatal(e.what());
     }
 
-    tt::llrt::OptionsG.set_kernels_nullified(false);
+    tt::llrt::RunTimeOptions::get_instance().set_kernels_nullified(false);
 
     if (pass) {
         log_info(LogTest, "Test Passed");

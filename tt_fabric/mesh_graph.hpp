@@ -8,12 +8,11 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <magic_enum/magic_enum.hpp>
 
-#include "magic_enum.hpp"
 #include "tt_metal/common/assert.hpp"
 #include "tt_metal/llrt/tt_cluster.hpp"
 #include "tt_metal/tt_stl/reflection.hpp"
-#include "umd/device/tt_arch_types.h"
 
 namespace tt::tt_fabric {
 struct ChipSpec {

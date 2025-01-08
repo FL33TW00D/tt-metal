@@ -8,22 +8,22 @@
 uint16_t eth_chan_to_noc_xy[2][16] __attribute__((used)) = {
     {
         // noc=0
-        (((0 << NOC_ADDR_NODE_ID_BITS) | 9) << NOC_COORD_REG_OFFSET),  // NOC_X=9 NOC_Y=0
-        (((0 << NOC_ADDR_NODE_ID_BITS) | 1) << NOC_COORD_REG_OFFSET),  // NOC_X=1 NOC_Y=0
-        (((0 << NOC_ADDR_NODE_ID_BITS) | 8) << NOC_COORD_REG_OFFSET),  // NOC_X=8 NOC_Y=0
-        (((0 << NOC_ADDR_NODE_ID_BITS) | 2) << NOC_COORD_REG_OFFSET),  // NOC_X=2 NOC_Y=0
-        (((0 << NOC_ADDR_NODE_ID_BITS) | 7) << NOC_COORD_REG_OFFSET),  // NOC_X=7 NOC_Y=0
-        (((0 << NOC_ADDR_NODE_ID_BITS) | 3) << NOC_COORD_REG_OFFSET),  // NOC_X=3 NOC_Y=0
-        (((0 << NOC_ADDR_NODE_ID_BITS) | 6) << NOC_COORD_REG_OFFSET),  // NOC_X=6 NOC_Y=0
-        (((0 << NOC_ADDR_NODE_ID_BITS) | 4) << NOC_COORD_REG_OFFSET),  // NOC_X=4 NOC_Y=0
-        (((6 << NOC_ADDR_NODE_ID_BITS) | 9) << NOC_COORD_REG_OFFSET),  // NOC_X=9 NOC_Y=6
-        (((6 << NOC_ADDR_NODE_ID_BITS) | 1) << NOC_COORD_REG_OFFSET),  // NOC_X=1 NOC_Y=6
-        (((6 << NOC_ADDR_NODE_ID_BITS) | 8) << NOC_COORD_REG_OFFSET),  // NOC_X=8 NOC_Y=6
-        (((6 << NOC_ADDR_NODE_ID_BITS) | 2) << NOC_COORD_REG_OFFSET),  // NOC_X=2 NOC_Y=6
-        (((6 << NOC_ADDR_NODE_ID_BITS) | 7) << NOC_COORD_REG_OFFSET),  // NOC_X=7 NOC_Y=6
-        (((6 << NOC_ADDR_NODE_ID_BITS) | 3) << NOC_COORD_REG_OFFSET),  // NOC_X=3 NOC_Y=6
-        (((6 << NOC_ADDR_NODE_ID_BITS) | 6) << NOC_COORD_REG_OFFSET),  // NOC_X=6 NOC_Y=6
-        (((6 << NOC_ADDR_NODE_ID_BITS) | 4) << NOC_COORD_REG_OFFSET),  // NOC_X=4 NOC_Y=6
+        (((16 << NOC_ADDR_NODE_ID_BITS) | 25) << NOC_COORD_REG_OFFSET),  // NOC_X=9 NOC_Y=0
+        (((16 << NOC_ADDR_NODE_ID_BITS) | 18) << NOC_COORD_REG_OFFSET),  // NOC_X=1 NOC_Y=0
+        (((16 << NOC_ADDR_NODE_ID_BITS) | 24) << NOC_COORD_REG_OFFSET),  // NOC_X=8 NOC_Y=0
+        (((16 << NOC_ADDR_NODE_ID_BITS) | 19) << NOC_COORD_REG_OFFSET),  // NOC_X=2 NOC_Y=0
+        (((16 << NOC_ADDR_NODE_ID_BITS) | 23) << NOC_COORD_REG_OFFSET),  // NOC_X=7 NOC_Y=0
+        (((16 << NOC_ADDR_NODE_ID_BITS) | 20) << NOC_COORD_REG_OFFSET),  // NOC_X=3 NOC_Y=0
+        (((16 << NOC_ADDR_NODE_ID_BITS) | 22) << NOC_COORD_REG_OFFSET),  // NOC_X=6 NOC_Y=0
+        (((16 << NOC_ADDR_NODE_ID_BITS) | 21) << NOC_COORD_REG_OFFSET),  // NOC_X=4 NOC_Y=0
+        (((17 << NOC_ADDR_NODE_ID_BITS) | 25) << NOC_COORD_REG_OFFSET),  // NOC_X=9 NOC_Y=6
+        (((17 << NOC_ADDR_NODE_ID_BITS) | 18) << NOC_COORD_REG_OFFSET),  // NOC_X=1 NOC_Y=6
+        (((17 << NOC_ADDR_NODE_ID_BITS) | 24) << NOC_COORD_REG_OFFSET),  // NOC_X=8 NOC_Y=6
+        (((17 << NOC_ADDR_NODE_ID_BITS) | 19) << NOC_COORD_REG_OFFSET),  // NOC_X=2 NOC_Y=6
+        (((17 << NOC_ADDR_NODE_ID_BITS) | 23) << NOC_COORD_REG_OFFSET),  // NOC_X=7 NOC_Y=6
+        (((17 << NOC_ADDR_NODE_ID_BITS) | 20) << NOC_COORD_REG_OFFSET),  // NOC_X=3 NOC_Y=6
+        (((17 << NOC_ADDR_NODE_ID_BITS) | 22) << NOC_COORD_REG_OFFSET),  // NOC_X=6 NOC_Y=6
+        (((17 << NOC_ADDR_NODE_ID_BITS) | 21) << NOC_COORD_REG_OFFSET),  // NOC_X=4 NOC_Y=6
     },
     {
         // noc=1

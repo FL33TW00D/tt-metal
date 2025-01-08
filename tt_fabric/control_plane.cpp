@@ -168,7 +168,7 @@ void ControlPlane::initialize_from_mesh_graph_desc_file(const std::string& mesh_
     eth_coord_t nw_chip_eth_coord;
     std::uint32_t mesh_ns_size, mesh_ew_size;
     if (mesh_graph_desc_file.find("tg_mesh_graph_descriptor.yaml") != std::string::npos) {
-        cluster_desc_file_path = std::filesystem::path(tt::llrt::OptionsG.get_root_dir()) /
+        cluster_desc_file_path = std::filesystem::path(tt::llrt::RunTimeOptions::get_instance().get_root_dir()) /
                                  "tests/tt_metal/tt_fabric/common/tg_cluster_desc.yaml";
 
         // Add the N150 MMIO devices
@@ -181,13 +181,13 @@ void ControlPlane::initialize_from_mesh_graph_desc_file(const std::string& mesh_
         mesh_ns_size = routing_table_generator_->get_mesh_ns_size(/*mesh_id=*/4);
         mesh_ew_size = routing_table_generator_->get_mesh_ew_size(/*mesh_id=*/4);
     } else if (mesh_graph_desc_file.find("t3k_mesh_graph_descriptor.yaml") != std::string::npos) {
-        cluster_desc_file_path = std::filesystem::path(tt::llrt::OptionsG.get_root_dir()) /
+        cluster_desc_file_path = std::filesystem::path(tt::llrt::RunTimeOptions::get_instance().get_root_dir()) /
                                  "tests/tt_metal/tt_fabric/common/t3k_cluster_desc.yaml";
         nw_chip_eth_coord = {0, 0, 1, 0, 0};
         mesh_ns_size = routing_table_generator_->get_mesh_ns_size(/*mesh_id=*/0);
         mesh_ew_size = routing_table_generator_->get_mesh_ew_size(/*mesh_id=*/0);
     } else if (mesh_graph_desc_file.find("n300_mesh_graph_descriptor.yaml") != std::string::npos) {
-        cluster_desc_file_path = std::filesystem::path(tt::llrt::OptionsG.get_root_dir()) /
+        cluster_desc_file_path = std::filesystem::path(tt::llrt::RunTimeOptions::get_instance().get_root_dir()) /
                                  "tests/tt_metal/tt_fabric/common/n300_cluster_desc.yaml";
         nw_chip_eth_coord = {0, 0, 0, 0, 0};
         mesh_ns_size = routing_table_generator_->get_mesh_ns_size(/*mesh_id=*/0);
@@ -464,14 +464,13 @@ void ControlPlane::write_routing_tables_to_chip(mesh_id_t mesh_id, chip_id_t chi
             fabric_router_config.my_device_id = chip_id;
 
             // Write data to physical eth core
-            tt_cxy_pair physical_eth_core(
-                physical_chip_id,
-                tt::Cluster::instance().get_soc_desc(physical_chip_id).physical_ethernet_cores[eth_chan]);
+            CoreCoord virtual_eth_core =
+                tt::Cluster::instance().get_virtual_eth_core_from_channel(physical_chip_id, eth_chan);
 
             tt::Cluster::instance().write_core(
                 (void*)&fabric_router_config,
                 sizeof(tt::tt_fabric::fabric_router_l1_config_t),
-                physical_eth_core,
+                tt_cxy_pair(physical_chip_id, virtual_eth_core),
                 eth_l1_mem::address_map::FABRIC_ROUTER_CONFIG_BASE,
                 false);
         }

@@ -225,7 +225,7 @@ int main(int argc, char** argv) {
 
     try {
         const std::filesystem::path tg_mesh_graph_desc_path =
-            std::filesystem::path(tt::llrt::OptionsG.get_root_dir()) /
+            std::filesystem::path(tt::llrt::RunTimeOptions::get_instance().get_root_dir()) /
             "tt_fabric/mesh_graph_descriptors/tg_mesh_graph_descriptor.yaml";
         auto control_plane = std::make_unique<tt::tt_fabric::ControlPlane>(tg_mesh_graph_desc_path.string());
 
@@ -290,7 +290,7 @@ int main(int argc, char** argv) {
         CoreCoord router_logical_core;
         CoreCoord router_phys_core;
         for (auto device : device_map) {
-            auto neighbors = device.second->get_ethernet_connected_device_ids();
+            auto neighbors = tt::Cluster::instance().get_ethernet_connected_device_ids(device.second->id());
             std::vector<CoreCoord> device_router_cores;
             std::vector<CoreCoord> device_router_phys_cores;
             uint32_t router_mask = 0;
@@ -553,7 +553,7 @@ int main(int argc, char** argv) {
         log_fatal(e.what());
     }
 
-    tt::llrt::OptionsG.set_kernels_nullified(false);
+    tt::llrt::RunTimeOptions::get_instance().set_kernels_nullified(false);
 
     if (pass) {
         log_info(LogTest, "Test Passed");
