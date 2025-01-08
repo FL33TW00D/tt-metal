@@ -2018,12 +2018,8 @@ void EnqueueReadBuffer(
     void* dst,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
-    const DeviceAddr offset = 0;
-
     Buffer& buffer_obj = detail::GetBufferObject(buffer);
-    const DeviceAddr size = buffer_obj.size();
-
-    BufferRegion region(offset, size);
+    BufferRegion region(0, buffer_obj.size());
     EnqueueReadSubBuffer(cq, buffer, dst, region, blocking, sub_device_ids);
 }
 
@@ -2052,12 +2048,8 @@ void EnqueueWriteBuffer(
     HostDataType src,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
-    const DeviceAddr offset = 0;
-
     Buffer& buffer_obj = detail::GetBufferObject(buffer);
-    const DeviceAddr size = buffer_obj.size();
-
-    BufferRegion region(offset, size);
+    BufferRegion region(0, buffer_obj.size());
     EnqueueWriteSubBuffer(cq, buffer, std::move(src), region, blocking, sub_device_ids);
 }
 
