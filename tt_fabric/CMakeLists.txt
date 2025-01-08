@@ -19,13 +19,12 @@ target_sources(
 
 target_link_libraries(
     tt_fabric
-    PUBLIC
+    PRIVATE
         Metalium::Metal
         umd::device
         metal_common_libs
         magic_enum
         fmt::fmt-header-only
-    PRIVATE
         yaml-cpp::yaml-cpp
 )
 
@@ -43,13 +42,14 @@ target_precompile_headers(
 target_include_directories(
     tt_fabric
     PUBLIC
-        ${UMD_HOME}
         ${PROJECT_SOURCE_DIR}
-        ${PROJECT_SOURCE_DIR}/tt_metal
         ${CMAKE_CURRENT_SOURCE_DIR}
+    PRIVATE
+        ${UMD_HOME}
+        ${PROJECT_SOURCE_DIR}/tt_metal
 )
 
-target_compile_options(tt_fabric PUBLIC -Wno-int-to-pointer-cast)
+target_compile_options(tt_fabric PRIVATE -Wno-int-to-pointer-cast)
 
 set_target_properties(
     tt_fabric
