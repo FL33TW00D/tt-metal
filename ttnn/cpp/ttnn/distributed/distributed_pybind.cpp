@@ -20,7 +20,6 @@ namespace py = pybind11;
 
 void py_module_types(py::module& module) {
     py::class_<MeshDevice, std::shared_ptr<MeshDevice>>(module, "MeshDevice");
-    py::class_<MeshSubDeviceManagerId>(module, "MeshSubDeviceManagerId");
     py::class_<MeshShape>(module, "MeshShape", "Struct representing the shape of a mesh device.");
     py::class_<MeshOffset>(module, "MeshOffset", "Struct representing the offset of a mesh device.");
 }
@@ -199,7 +198,7 @@ void py_module(py::module& module) {
                     local_l1_size (int): The size of the local allocators of each sub-device. The global allocator will be shrunk by this amount.
 
                 Returns:
-                    MeshSubDeviceManagerId: The ID of the created sub-device manager.
+                    MeshSubDeviceManagerId: The ID of the created sub-device manager. // fix the docs
             )doc")
         .def(
             "create_sub_device_manager_with_fabric",

@@ -22,32 +22,31 @@ static std::vector<MeshDeviceView::device_pointer> get_devices_from_coordinates(
     return devices;
 }
 
-MeshDeviceView::MeshDeviceView(const MeshDevice& mesh) :
-    top_left_(0, 0), bottom_right_(mesh.num_rows() - 1, mesh.num_cols() - 1) {
-    for (size_t row = 0; row < mesh.num_rows(); ++row) {
-        for (size_t col = 0; col < mesh.num_cols(); ++col) {
-            if (auto device = mesh.get_device(row, col)) {
-                devices_.push_back(device);
-                device_coordinates_[(device)->id()] = {row, col};
-            }
-        }
-    }
-}
-
-MeshDeviceView::MeshDeviceView(const MeshDevice& mesh, Coordinate top_left, Coordinate bottom_right) :
+MeshDeviceView::MeshDeviceView(
+    const std::vector<device_pointer>& devices, Coordinate top_left, Coordinate bottom_right) :
     top_left_(0, 0), bottom_right_(Coordinate{bottom_right.row - top_left.row, bottom_right.col - top_left.col}) {
+    auto num_rows = bottom_right.row - top_left.row + 1;
+    auto num_cols = bottom_right.col - top_left.col + 1;
+
     for (size_t row = top_left.row; row <= bottom_right.row; ++row) {
         for (size_t col = top_left.col; col <= bottom_right.col; ++col) {
-            if (auto device = mesh.get_device(row, col)) {
-                devices_.push_back(device);
-                device_coordinates_[(device)->id()] = {row - top_left.row, col - top_left.col};
-            }
+            auto device_index = row * num_cols + col;
+            TT_FATAL(device_index < devices.size(), "Device index out of bounds");
+            auto device = devices[device_index];
+            devices_.push_back(device);
+            device_coordinates_[device->id()] = {row - top_left.row, col - top_left.col};
         }
     }
     validate_coordinates();
 }
 
-MeshDeviceView::MeshDeviceView(std::vector<device_pointer> devices, const CoordinateMapper& mapper) :
+MeshDeviceView::MeshDeviceView(const MeshDevice& mesh_device) :
+    MeshDeviceView(mesh_device.get_devices(MeshType::RowMajor), mesh_device.shape()) {}
+
+MeshDeviceView::MeshDeviceView(const std::vector<device_pointer>& devices, const MeshShape& shape) :
+    MeshDeviceView(devices, Coordinate{0, 0}, Coordinate{shape.num_rows - 1, shape.num_cols - 1}) {}
+
+MeshDeviceView::MeshDeviceView(const std::vector<device_pointer>& devices, const CoordinateMapper& mapper) :
     devices_(std::move(devices)) {
     initialize_from_devices(devices_, std::move(mapper));
 }

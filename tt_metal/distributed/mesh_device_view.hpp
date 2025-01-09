@@ -12,16 +12,12 @@
 #include <functional>
 
 #include "tt_metal/device.hpp"
+#include "tt_metal/distributed/mesh_config.hpp"
 
 namespace tt::tt_metal::distributed {
 
 // Forward declaration of MeshDevice
 class MeshDevice;
-struct MeshShape {
-    size_t num_rows = 0;
-    size_t num_cols = 0;
-};
-
 struct Coordinate {
     size_t row;
     size_t col;
@@ -61,8 +57,6 @@ struct Coordinate {
  *    (CCL-ops), such as line all-gather, which require column or row views of the device mesh.
  */
 
-enum class MeshType { RowMajor, Ring, Line };
-
 class MeshDeviceView {
 public:
     using device_pointer = IDevice*;
@@ -71,9 +65,10 @@ public:
     using DeviceViews = std::vector<std::vector<device_pointer>>;
     using CoordinateMapper = std::function<std::optional<Coordinate>(int device_id)>;
 
-    MeshDeviceView(const MeshDevice& mesh);
-    MeshDeviceView(const MeshDevice& mesh, Coordinate top_left, Coordinate bottom_right);
-    MeshDeviceView(std::vector<device_pointer> devices, const CoordinateMapper& mapper);
+    MeshDeviceView(const std::vector<device_pointer>& devices, const MeshShape& shape);
+    MeshDeviceView(const std::vector<device_pointer>& devices, Coordinate top_left, Coordinate bottom_right);
+    MeshDeviceView(const MeshDevice& mesh_device);
+    MeshDeviceView(const std::vector<device_pointer>& devices, const CoordinateMapper& mapper);
 
     [[nodiscard]] device_pointer get_device(size_t row, size_t col) const;
 
