@@ -14,6 +14,8 @@
 
 namespace tt::tt_fabric {
 
+static_assert(eth_l1_mem::address_map::FABRIC_ROUTER_CONFIG_SIZE == sizeof(fabric_router_l1_config_t));
+
 class ControlPlane {
    public:
        explicit ControlPlane(const std::string& mesh_graph_desc_yaml_file);
