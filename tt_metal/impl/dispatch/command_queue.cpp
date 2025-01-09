@@ -2041,6 +2041,7 @@ void EnqueueReadBuffer(
     void* dst,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
+    TRACE_FUNCTION_ENTRY();
     TRACE_FUNCTION_CALL(CaptureEnqueueReadBuffer, cq, buffer, dst, blocking); // FIXME (kmabee) consider sub_device_ids added recently.
     detail::DispatchStateCheck(true);
     cq.run_command(CommandInterface{
@@ -2053,6 +2054,7 @@ void EnqueueWriteBuffer(
     HostDataType src,
     bool blocking,
     tt::stl::Span<const SubDeviceId> sub_device_ids) {
+    TRACE_FUNCTION_ENTRY();
     TRACE_FUNCTION_CALL(CaptureEnqueueWriteBuffer, cq, buffer, src, blocking); // FIXME (kmabee) consider sub_device_ids added recently.
     detail::DispatchStateCheck(true);
     cq.run_command(CommandInterface{
@@ -2061,6 +2063,7 @@ void EnqueueWriteBuffer(
 
 void EnqueueProgram(
     CommandQueue& cq, Program& program, bool blocking) {
+    TRACE_FUNCTION_ENTRY();
     TRACE_FUNCTION_CALL(CaptureEnqueueProgram, cq, program, blocking);
     detail::DispatchStateCheck(true);
     cq.run_command(
@@ -2123,6 +2126,7 @@ bool EventQuery(const std::shared_ptr<Event>& event) {
 }
 
 void Finish(CommandQueue& cq, tt::stl::Span<const SubDeviceId> sub_device_ids) {
+    TRACE_FUNCTION_ENTRY();
     TRACE_FUNCTION_CALL(CaptureFinish, cq); // FIXME (kmabee) consider sub_device_ids added recently.
     detail::DispatchStateCheck(true);
     cq.run_command(CommandInterface{.type = EnqueueCommandType::FINISH, .blocking = true, .sub_device_ids = sub_device_ids});
@@ -2136,6 +2140,7 @@ void Finish(CommandQueue& cq, tt::stl::Span<const SubDeviceId> sub_device_ids) {
 }
 
 void EnqueueTrace(CommandQueue& cq, uint32_t trace_id, bool blocking) {
+    TRACE_FUNCTION_ENTRY();
     TRACE_FUNCTION_CALL(CaptureEnqueueTrace, cq, trace_id, blocking);
     detail::DispatchStateCheck(true);
     TT_FATAL(cq.device()->get_trace(trace_id) != nullptr, "Trace instance {} must exist on device", trace_id);

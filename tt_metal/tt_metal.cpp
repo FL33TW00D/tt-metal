@@ -897,6 +897,7 @@ DeviceAddr AllocateBuffer(Buffer* buffer) {
 }
 
 void DeallocateBuffer(Buffer* buffer) {
+    TRACE_FUNCTION_ENTRY();
     TRACE_FUNCTION_CALL(CaptureDeallocateBuffer, buffer);
     GraphTracker::instance().track_deallocate(buffer);
     if (GraphTracker::instance().hook_deallocate(buffer)) {
@@ -981,6 +982,7 @@ bool CloseDevice(Device* device) {
 }
 
 Program CreateProgram() {
+    TRACE_FUNCTION_ENTRY();
     auto program = Program();
     TRACE_FUNCTION_CALL(CaptureCreateProgram, program);
     return program;
@@ -1070,6 +1072,7 @@ KernelHandle CreateKernel(
     const std::string& file_name,
     const std::variant<CoreCoord, CoreRange, CoreRangeSet>& core_spec,
     const std::variant<DataMovementConfig, ComputeConfig, EthernetConfig>& config) {
+    TRACE_FUNCTION_ENTRY();
     KernelHandle kernel = std::visit(
         [&](auto&& cfg) -> KernelHandle {
             CoreRangeSet core_ranges = GetCoreRangeSet(core_spec);
@@ -1114,6 +1117,7 @@ CBHandle CreateCircularBuffer(
     Program& program,
     const std::variant<CoreCoord, CoreRange, CoreRangeSet>& core_spec,
     const CircularBufferConfig& config) {
+    TRACE_FUNCTION_ENTRY();
     CoreRangeSet core_ranges = GetCoreRangeSet(core_spec);
     auto cb_handle = program.add_circular_buffer(core_ranges, config);
     TRACE_FUNCTION_CALL(CaptureCreateCircularBuffer, cb_handle, program, core_spec, config);
@@ -1204,6 +1208,7 @@ GlobalSemaphore CreateGlobalSemaphore(
 }
 
 std::shared_ptr<Buffer> CreateBuffer(const InterleavedBufferConfig& config) {
+    TRACE_FUNCTION_ENTRY();
     auto buffer = Buffer::create(
         config.device,
         config.size,
@@ -1286,6 +1291,7 @@ void SetRuntimeArgs(
     KernelHandle kernel_id,
     const std::variant<CoreCoord, CoreRange, CoreRangeSet>& core_spec,
     stl::Span<const uint32_t> runtime_args) {
+    TRACE_FUNCTION_ENTRY();
     TRACE_FUNCTION_CALL(CaptureSetRuntimeArgs, program, kernel_id, core_spec, runtime_args);
     ZoneScoped;
     TT_FATAL(
@@ -1321,6 +1327,7 @@ void SetRuntimeArgs(
     const std::shared_ptr<Kernel>& kernel,
     const std::variant<CoreCoord, CoreRange, CoreRangeSet>& core_spec,
     std::shared_ptr<RuntimeArgs> runtime_args) {
+    TRACE_FUNCTION_ENTRY();
     detail::DispatchStateCheck(not device->using_slow_dispatch());
     TRACE_FUNCTION_CALL(CaptureSetRuntimeArgs1, device, kernel, core_spec, runtime_args);
     SetRuntimeArgsImpl(device->command_queue(), kernel, core_spec, std::move(runtime_args), false);
@@ -1379,6 +1386,7 @@ uint32_t BeginTraceCapture(Device* device, const uint8_t cq_id) {
 }
 
 void EndTraceCapture(Device* device, const uint8_t cq_id, const uint32_t tid) {
+    TRACE_FUNCTION_ENTRY();
     device->end_trace(cq_id, tid);
     // When light metal tracing is enabled, TraceDescriptor will be serialized via end_trace() and this
     // will serialize the LightMetalLoadTraceId call to be used during replay to load trace back to device.
@@ -1387,11 +1395,13 @@ void EndTraceCapture(Device* device, const uint8_t cq_id, const uint32_t tid) {
 }
 
 void ReplayTrace(Device* device, const uint8_t cq_id, const uint32_t tid, const bool blocking) {
+    TRACE_FUNCTION_ENTRY();
     TRACE_FUNCTION_CALL(CaptureReplayTrace, device, cq_id, tid, blocking);
     device->replay_trace(cq_id, tid, blocking);
 }
 
 void ReleaseTrace(Device* device, const uint32_t tid) {
+    TRACE_FUNCTION_ENTRY();
     TRACE_FUNCTION_CALL(CaptureReleaseTrace, device, tid);
     device->release_trace(tid);
 }
