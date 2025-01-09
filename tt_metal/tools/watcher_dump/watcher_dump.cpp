@@ -7,6 +7,7 @@
 #include "impl/debug/watcher_server.hpp"
 #include "impl/debug/noc_logging.hpp"
 #include "impl/dispatch/debug_tools.hpp"
+#include "tt_metal/llrt/hal.hpp"
 
 using namespace tt;
 using namespace tt::tt_metal;
@@ -41,6 +42,14 @@ void dump_data(
     }
     if (dump_watcher) {
         cout << "Dumping Watcher Log into: " << watcher_get_log_file_name() << endl;
+    }
+
+    // ISSUE #(16167)
+    auto arch = hal.get_arch();
+    bool is_blackhole = arch == ARCH::BLACKHOLE;
+    if (is_blackhole) {
+        cout << "Blackhole detected, skipping dump." << endl;
+        return;
     }
 
     // Only look at user-specified devices
