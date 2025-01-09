@@ -28,6 +28,8 @@ struct BatchNormOperation {
         std::optional<Tensor> weight;
         std::optional<Tensor> bias;
         std::optional<Tensor> output;
+        std::optional<Tensor> running_mean;
+        std::optional<Tensor> running_var;
     };
 
     using spec_return_value_t = TensorSpec;
@@ -72,6 +74,8 @@ struct BatchNormOperation {
         const bool training,
         std::optional<Tensor> weight,
         std::optional<Tensor> bias,
+        std::optional<Tensor> running_mean,
+        std::optional<Tensor> running_var,
         std::optional<Tensor> output,
         const std::optional<MemoryConfig>& memory_config);
 };

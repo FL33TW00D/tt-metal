@@ -24,7 +24,7 @@ from itertools import product
         torch.Size([3, 2, 64, 120]),
     ],
 )
-@pytest.mark.parametrize("training", [False])
+@pytest.mark.parametrize("training", [True, False])
 @pytest.mark.parametrize("weight", [True, False])
 @pytest.mark.parametrize("bias", [True, False])
 @pytest.mark.parametrize("eps", [1.0, 0.0, 2.34, 1e-05])
