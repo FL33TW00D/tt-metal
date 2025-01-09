@@ -154,6 +154,10 @@ private:
     uint32_t virtual_worker_start_x_;
     uint32_t virtual_worker_start_y_;
 
+    float eps_;
+    float nan_;
+    float inf_;
+
     void initialize_gs();
     void initialize_wh();
     void initialize_bh();
@@ -170,6 +174,10 @@ public:
     tt::ARCH get_arch() const { return arch_; }
 
     uint32_t get_num_nocs() const { return num_nocs_; }
+
+    float get_eps() const { return eps_; }
+    float get_nan() const { return nan_; }
+    float get_inf() const { return inf_; }
 
     template <typename IndexType, typename SizeType, typename CoordType>
     auto noc_coordinate(IndexType noc_index, SizeType noc_size, CoordType coord) const
