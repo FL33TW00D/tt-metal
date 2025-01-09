@@ -101,19 +101,20 @@ int main(int argc, char** argv) {
     CoreCoord tl_core = device->worker_core_from_logical_core({tlx_g, tly_g});
 
     if (mcast_from_eth_g) {
-        if (mcast_from_n_eth_g >= eth_cores.size()) {
-            log_fatal(
-                "{} is larger than the range of idle eth cores (0 - {})", mcast_from_n_eth_g, eth_cores.size() - 1);
-            tt_metal::CloseDevice(device);
-            exit(-1);
-        }
-        int count = 0;
+        CoreCoord eth_logical(0, mcast_from_n_eth_g);
+        bool found = false;
         for (const auto& eth_core : eth_cores) {
-            if (count++ == mcast_from_n_eth_g) {
-                mcast_logical = eth_core;
+            if (eth_logical == eth_core) {
+                found = true;
                 break;
             }
         }
+        if (!found) {
+            log_fatal("{} not found in the list of idle eth cores", mcast_from_n_eth_g);
+            tt_metal::CloseDevice(device);
+            exit(-1);
+        }
+        mcast_logical = eth_logical;
     }
 
     std::vector<uint32_t> runtime_args;
