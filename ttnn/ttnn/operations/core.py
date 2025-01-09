@@ -322,10 +322,13 @@ def to_torch(
         ):
             tensor = tensor.to(ttnn.ROW_MAJOR_LAYOUT, device)
 
-        shape_without_tile_padding = tuple(tensor.shape)
-        tensor = tensor.to_torch()
-        slices = [slice(None, x) for x in shape_without_tile_padding]
-        tensor = tensor[slices]
+        if len(tensor.shape) == 1:
+            tensor = tensor.cpu().to_torch_with_logical_shape()
+        else:
+            shape_without_tile_padding = tuple(tensor.shape)
+            tensor = tensor.to_torch()
+            slices = [slice(None, x) for x in shape_without_tile_padding]
+            tensor = tensor[slices]
 
     if torch_rank is not None:
         while len(tensor.shape) > torch_rank:
