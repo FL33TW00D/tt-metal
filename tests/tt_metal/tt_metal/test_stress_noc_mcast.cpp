@@ -172,11 +172,15 @@ int main(int argc, char** argv) {
     }
     tt::tt_metal::SetRuntimeArgs(program, mcast_kernel, mcast_logical, runtime_args);
 
+    CoreCoord mcast_virtual = mcast_from_eth_g ? device->ethernet_core_from_logical_core(mcast_logical)
+                                               : device->worker_core_from_logical_core(mcast_logical);
+
     log_info(
         LogTest,
-        "MCast {} core: {}, writing {} bytes per xfer",
+        "MCast {} core: {}, virtual {}, writing {} bytes per xfer",
         mcast_from_eth_g ? "ETH" : "TENSIX",
         mcast_logical,
+        mcast_virtual,
         mcast_size_g);
     log_info(LogTest, "Unicast grid: {}, writing {} bytes per xfer", workers_logical.str(), ucast_size_g);
 

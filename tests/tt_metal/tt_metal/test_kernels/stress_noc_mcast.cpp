@@ -56,7 +56,7 @@ void kernel_main() {
                 if (enable_rnd_coords) {
                     uint32_t addr = rnds[rnd_offset];
                     dst_x = (addr & 0x7) + 18;
-                    dst_y = ((addr >> 4) & 0x7) + 16;
+                    dst_y = ((addr >> 4) & 0x7) + 18;
                     rnd_offset++;
                     rnd_offset &= 511;
                 }
