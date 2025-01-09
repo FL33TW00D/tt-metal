@@ -51,6 +51,8 @@ void kernel_main() {
             if (mcaster) {
                 uint64_t dst_noc_multicast_addr =
                     get_noc_multicast_addr(tlx, tly, tlx + width - 1, tly + height - 1, write_ptr);
+                uint32_t val = *(volatile uint32_t*)(0xFFB2002C);
+                DPRINT << HEX() << val << ENDL();
                 noc_async_write_multicast(read_ptr, dst_noc_multicast_addr, mcast_size, width * height, false);
             } else {
                 if (enable_rnd_coords) {
