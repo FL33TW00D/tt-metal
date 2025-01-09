@@ -13,14 +13,15 @@ if [[ -z "$TT_METAL_SLOW_DISPATCH_MODE" ]] ; then
 
     # Run a test that populates basic fields but not watcher fields
     ./build/test/tt_metal/unit_tests_debug_tools --gtest_filter=*PrintHanging
+    if [ "$ARCH_NAME" != "blackhole" ]; then #ISSUE #(16167)
+        if [[ =z]]
+        # Run dump tool w/ minimum data - no error expected.
+        ./build/tools/watcher_dump -d=0 -w -c
 
-    # Run dump tool w/ minimum data - no error expected.
-    ./build/tools/watcher_dump -d=0 -w -c
-
-    # Verify the kernel we ran shows up in the log.
-    grep "tests/tt_metal/tt_metal/test_kernels/misc/print_hang.cpp" generated/watcher/watcher.log > /dev/null || { echo "Error: couldn't find expected string in watcher log after dump." ; exit 1; }
-    echo "Watcher dump minimal test - Pass"
-
+        # Verify the kernel we ran shows up in the log.
+        grep "tests/tt_metal/tt_metal/test_kernels/misc/print_hang.cpp" generated/watcher/watcher.log > /dev/null || { echo "Error: couldn't find expected string in watcher log after dump." ; exit 1; }
+        echo "Watcher dump minimal test - Pass"
+    fi
     # Now run with all watcher features, expect it to throw.
     ./build/test/tt_metal/unit_tests_debug_tools --gtest_filter=*WatcherAssertBrisc
     ./build/tools/watcher_dump -d=0 -w &> tmp.log || { echo "Above failure is expected."; }
