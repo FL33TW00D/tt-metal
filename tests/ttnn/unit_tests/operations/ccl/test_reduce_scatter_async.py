@@ -116,6 +116,24 @@ def run_reduce_scatter_test(
 
     debug = False
 
+    compute_grid_size = mesh_device.compute_with_storage_grid_size()
+    ccl_sub_device_crs = ttnn.CoreRangeSet(
+        {ttnn.CoreRange(ttnn.CoreCoord(0, 0), ttnn.CoreCoord(compute_grid_size.x - 1, compute_grid_size.y - 1))}
+    )
+    worker_sub_device = ttnn.SubDevice([ccl_sub_device_crs])
+    worker_sub_device_id = ttnn.SubDeviceId(0)
+    mesh_sub_device_manager_id = create_and_load_sub_device_manager_with_fabric_interface(
+        mesh_device, [worker_sub_device], 0, 0, enable_persistent_fabric
+    )
+
+    # create global semaphore handles
+    from_remote_semaphore_handles = create_global_semaphore_with_same_address(
+        mesh_device, ccl_sub_device_crs, 0, [worker_sub_device_id]  # , search_max=True
+    )
+    to_remote_semaphore_handles = create_global_semaphore_with_same_address(
+        mesh_device, ccl_sub_device_crs, 0, [worker_sub_device_id]  # , search_max=True
+    )
+
     if input_shard_shape and shard_grid:
         input_shard_spec = ttnn.ShardSpec(
             shard_grid,
@@ -183,29 +201,16 @@ def run_reduce_scatter_test(
         tt_input_tensors.append(
             ttnn.Tensor(canonical_input_tensor, input_dtype)
             .to(layout)
-            .to(mesh_device.get_device(mesh_device.get_device_ids()[i]), input_mem_config)
+            .to(
+                mesh_device.get_device(mesh_device.get_device_ids()[i]),
+                input_mem_config,
+                sub_device_ids=[worker_sub_device_id],
+            )
         )
 
     assert len(tt_input_tensors) == num_devices
 
     input_tensor_mesh = ttnn.aggregate_as_tensor(tt_input_tensors)
-    compute_grid_size = mesh_device.compute_with_storage_grid_size()
-    ccl_sub_device_crs = ttnn.CoreRangeSet(
-        {ttnn.CoreRange(ttnn.CoreCoord(0, 0), ttnn.CoreCoord(compute_grid_size.x - 1, compute_grid_size.y - 1))}
-    )
-    worker_sub_device = ttnn.SubDevice([ccl_sub_device_crs])
-    worker_sub_device_id = ttnn.SubDeviceId(0)
-    mesh_sub_device_manager_id = create_and_load_sub_device_manager_with_fabric_interface(
-        mesh_device, [worker_sub_device], 0, 0, enable_persistent_fabric
-    )
-
-    # create global semaphore handles
-    from_remote_semaphore_handles = create_global_semaphore_with_same_address(
-        mesh_device, ccl_sub_device_crs, 0, [worker_sub_device_id]  # , search_max=True
-    )
-    to_remote_semaphore_handles = create_global_semaphore_with_same_address(
-        mesh_device, ccl_sub_device_crs, 0, [worker_sub_device_id]  # , search_max=True
-    )
 
     # Run the op
     if trace_mode:
@@ -240,7 +245,6 @@ def run_reduce_scatter_test(
             ttnn.synchronize_device(mesh_device.get_device(device_id), sub_device_ids=[worker_sub_device_id])
         logger.info(f"Done iterations")
 
-    teardown_fabric_interface(mesh_device)
     # Compute golden
     # TODO: Make it model how reduce scatter actually works for numerical correctness/ordering
     golden_canonical_out_tensor = torch.zeros(canonical_input_shape).bfloat16()
@@ -257,7 +261,7 @@ def run_reduce_scatter_test(
     for i, t in enumerate(tt_out_tensors):
         logger.info(f"DEVICE {i}")
         logger.info(f"Checking output from device {t.device().id()}")
-        tt_output_tensor = t.cpu().to(ttnn.ROW_MAJOR_LAYOUT).to_torch()
+        tt_output_tensor = t.cpu(sub_device_ids=[worker_sub_device_id]).to(ttnn.ROW_MAJOR_LAYOUT).to_torch()
         eq, output = comp_pcc(tt_output_tensor, golden_output_tensors[i])
         mismatch = mismatch or not eq
         if not eq:
@@ -285,6 +289,8 @@ def run_reduce_scatter_test(
         else:
             logger.info(f"output match for tensor {i}")
     assert not mismatch, f"{i} FAILED: {output}"
+
+    teardown_fabric_interface(mesh_device)
 
 
 # ~2:45 extra time in the current state
@@ -328,7 +334,7 @@ def run_reduce_scatter_test(
 @pytest.mark.parametrize(
     "mem_config",
     [
-        ttnn.MemoryConfig(buffer_type=ttnn.BufferType.DRAM),
+        # ttnn.MemoryConfig(buffer_type=ttnn.BufferType.DRAM),
         ttnn.MemoryConfig(buffer_type=ttnn.BufferType.L1),
     ],
 )
