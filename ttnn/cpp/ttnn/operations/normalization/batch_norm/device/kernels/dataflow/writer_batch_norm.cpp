@@ -98,6 +98,8 @@ void kernel_main() {
 
     constexpr bool old_running_mean_has_value = get_compile_time_arg_val(10) == 1;
     constexpr bool old_running_var_has_value = get_compile_time_arg_val(11) == 1;
+    constexpr auto cb_id_updated_running_mean = tt::CBIndex::c_27;
+    constexpr auto cb_id_updated_running_var = tt::CBIndex::c_28;
 
     uint32_t tiles_per_batch = HtWt * C;
     uint32_t start_n = start_tile_id / tiles_per_batch;
@@ -149,21 +151,37 @@ void kernel_main() {
             // to read running stats value for updation
             if constexpr (is_training_mode) {
                 if constexpr (old_running_mean_has_value) {
+                    // read data
                     cb_reserve_back(cb_id_old_running_mean, onetile);
                     uint32_t l1_old_running_mean_write_addr = get_write_ptr(cb_id_old_running_mean);
                     noc_async_read_tile(tile_offset, old_running_mean, l1_old_running_mean_write_addr);
                     noc_async_read_barrier();
                     fill_tile_with_first_element_bfloat16(cb_id_old_running_mean);
                     cb_push_back(cb_id_old_running_mean, onetile);
+
+                    // write data
+                    cb_wait_front(cb_id_updated_running_mean, onetile);
+                    uint32_t l1_write_updated_mean_addr = get_read_ptr(cb_id_updated_running_mean);
+                    noc_async_write_tile(tile_offset, old_running_mean, l1_write_updated_mean_addr);
+                    noc_async_write_barrier();
+                    cb_pop_front(cb_id_updated_running_mean, onetile);
                 }
 
                 if constexpr (old_running_var_has_value) {
+                    // read data
                     cb_reserve_back(cb_id_old_running_var, onetile);
                     uint32_t l1_old_running_var_write_addr = get_write_ptr(cb_id_old_running_var);
                     noc_async_read_tile(tile_offset, old_running_var, l1_old_running_var_write_addr);
                     noc_async_read_barrier();
                     fill_tile_with_first_element_bfloat16(cb_id_old_running_var);
                     cb_push_back(cb_id_old_running_var, onetile);
+
+                    // write data
+                    cb_wait_front(cb_id_updated_running_var, onetile);
+                    uint32_t l1_write_updated_var_addr = get_read_ptr(cb_id_updated_running_var);
+                    noc_async_write_tile(tile_offset, old_running_var, l1_write_updated_var_addr);
+                    noc_async_write_barrier();
+                    cb_pop_front(cb_id_updated_running_var, onetile);
                 }
             }
 

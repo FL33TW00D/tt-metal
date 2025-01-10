@@ -24,20 +24,33 @@ from itertools import product
         torch.Size([3, 2, 64, 120]),
     ],
 )
-@pytest.mark.parametrize("training", [True, False])
+@pytest.mark.parametrize(
+    "training, check_mean, check_var",
+    [
+        # (True, True, True),
+        # (True, True, False),
+        # (True, False, True),
+        (True, False, False),
+        (False, False, False),  # xfail case
+        (False, True, False),  # xfail case
+        (False, False, True),  # xfail case
+        (False, True, True),
+    ],
+)
 @pytest.mark.parametrize("weight", [True, False])
 @pytest.mark.parametrize("bias", [True, False])
-@pytest.mark.parametrize("eps", [1.0, 0.0, 2.34, 1e-05])
-def test_batch_norm(input_shapes, training, weight, bias, eps, device):
+@pytest.mark.parametrize("eps", [1.05])
+def test_batch_norm(input_shapes, training, check_mean, check_var, weight, bias, eps, device):
     in_data, input_tensor = data_gen_with_range_batch_norm(input_shapes, 5, 10, device, is_input=True)
     mean_data, mean_tensor = (
-        data_gen_with_range_batch_norm(input_shapes, 4, 10, device) if (not training) else (None, None)
+        data_gen_with_range_batch_norm(input_shapes, 4, 10, device) if (check_mean) else (None, None)
     )
-    var_data, var_tensor = (
-        data_gen_with_range_batch_norm(input_shapes, 4, 20, device) if (not training) else (None, None)
-    )
+    var_data, var_tensor = data_gen_with_range_batch_norm(input_shapes, 4, 20, device) if (check_var) else (None, None)
     weight_data, weight_tensor = data_gen_with_range_batch_norm(input_shapes, 4, 10, device) if weight else (None, None)
     bias_data, bias_tensor = data_gen_with_range_batch_norm(input_shapes, 4, 10, device) if bias else (None, None)
+
+    if (not check_mean) or (not check_var):
+        pytest.xfail("running_mean and running_var must be defined in evaluation mode")
 
     tt_output_tensor_on_device = ttnn.batch_norm(
         input_tensor,

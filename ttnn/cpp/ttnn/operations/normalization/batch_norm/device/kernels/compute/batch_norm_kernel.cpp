@@ -60,6 +60,9 @@ void MAIN {
     constexpr auto cb_bias = tt::CBIndex::c_18;      // bias tensor
     constexpr auto cb_old_running_mean = tt::CBIndex::c_25;  // old running mean tensor
     constexpr auto cb_old_running_var = tt::CBIndex::c_26;   // old running var tensor
+    constexpr auto cb_updated_running_mean = tt::CBIndex::c_27;  // updated running mean tensor
+    constexpr auto cb_updated_running_var = tt::CBIndex::c_28;   // updated running var tensor
+    constexpr auto cb_momentum = tt::CBIndex::c_24;              // momentum
 
     auto cb_bcast = cb_batch_mean;
     auto cb_other = cb_input;
@@ -122,7 +125,7 @@ void MAIN {
         cb_push_back(cb_affine_or_out, onetile);
 
         if constexpr (is_training_mode) {
-            // update running stats here
+            // updated running stats
             if constexpr (old_running_mean_has_value) {
             }
 

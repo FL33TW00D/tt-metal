@@ -247,6 +247,20 @@ BatchNormOperation::BatchNormFactory::cached_program_t BatchNormOperation::Batch
         a_data_format);  // to store input - batch_mean
     auto [temp_1_cb, temp_1_cb_handle] =
         create_cb(tt::CBIndex::c_17, program, all_device_cores, a_single_tile_size, num_tiles_per_cb, a_data_format);
+    auto [updated_m_cb, updated_m_cb_handle] = create_cb(
+        tt::CBIndex::c_27,
+        program,
+        all_device_cores,
+        g_single_tile_size,
+        b_num_tiles_per_cb,
+        g_data_format);  // updated running mean
+    auto [updated_v_cb, updated_v_cb_handle] = create_cb(
+        tt::CBIndex::c_28,
+        program,
+        all_device_cores,
+        h_single_tile_size,
+        b_num_tiles_per_cb,
+        h_data_format);  // updated running var
 
     auto a_is_dram = static_cast<uint32_t>(a.buffer()->buffer_type() == tt_metal::BufferType::DRAM);
     auto b_is_dram = static_cast<uint32_t>(b.buffer()->buffer_type() == tt_metal::BufferType::DRAM);
