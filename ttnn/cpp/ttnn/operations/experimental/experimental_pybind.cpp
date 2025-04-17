@@ -44,6 +44,7 @@
 #include "ttnn/operations/experimental/transformer/all_reduce_create_qkv_heads/all_reduce_create_qkv_heads_pybind.hpp"
 #include "ttnn/operations/experimental/unary_backward/gelu_backward/gelu_backward_pybind.hpp"
 #include "ttnn/operations/experimental/reduction/sort/sort_pybind.hpp"
+#include "ttnn/operations/experimental/welford_layer_norm/welford_layer_norm_pybind.hpp"
 
 namespace ttnn::operations::experimental {
 
@@ -83,6 +84,8 @@ void py_module(py::module& module) {
     ttnn::operations::experimental::reduction::cumprod::detail::bind_cumprod_operation(module);
 
     copy::detail::py_bind_typecast(module);
+
+    welford_layer_norm::detail::bind_experimental_welford_layer_norm_operations(module);
 
     paged_cache::detail::bind_experimental_paged_cache_operations(module);
     matmul::detail::bind_attn_matmul(module);
